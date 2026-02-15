@@ -172,7 +172,9 @@ ds_opt <- dhis2_dataset_options(
   gestational_age_from = gestational_age_from,
   gestational_age_to = gestational_age_to,
   country_filter = country_filter,
-  include_invalid_patients = include_invalid_patients
+  include_invalid_patients = include_invalid_patients,
+  include_country = "yes",
+  include_world_bank_class = "yes"
 )
 
 ds <- import_dhis2(connection_options = conn_opt, dataset_options = ds_opt)
