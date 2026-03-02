@@ -14,7 +14,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="R\getReferenceData.R">
+    <!-- ToDo: Use RScript files from the reports in the Surveillance-Toolkit repository -->
+    <Content Include="R\getReferenceData.R" Condition="Exists('R\getReferenceData.R')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

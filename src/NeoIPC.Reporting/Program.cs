@@ -5,6 +5,9 @@ builder.Services.AddOpenApi();
 builder.Services.AddRequestTimeouts();
 
 var app = builder.Build();
+var pathBase = app.Configuration["PathBase"];
+if (!string.IsNullOrEmpty(pathBase))
+    app.UsePathBase(pathBase);
 if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 

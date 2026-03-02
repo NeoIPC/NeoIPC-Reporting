@@ -1,0 +1,113 @@
+services:
+  database:
+    image: postgis/postgis:${POSTGIS_VERSION}
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB_USERNAME: ${POSTGRES_DB_USERNAME}
+      POSTGRES_DB_PASSWORD: ${POSTGRES_DB_PASSWORD}
+    volumes:
+      - postgres:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d:ro
+      - ./config/postgresql/conf.d:/etc/postgresql/conf.d:ro
+      - type: tmpfs
+        target: /var/run/postgresql
+      - type: tmpfs
+        target: /tmp
+    networks:
+      - database
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  app:
+    image: dhis2/core:${DHIS2_VERSION}
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      CATALINA_OPTS: -Dcontext.path=
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_DB_USERNAME: ${POSTGRES_DB_USERNAME}
+      POSTGRES_DB_PASSWORD: ${POSTGRES_DB_PASSWORD}
+    volumes:
+      - dhis2:/opt/dhis2/
+      - ./config/dhis2/dhis.conf:/opt/dhis2/dhis.conf:ro
+    networks:
+      - application
+      - database
+      - frontend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8080/api/system/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.dhis2.rule=PathPrefix(`/`)
+      - traefik.http.routers.dhis2.entrypoints=web
+      - traefik.http.services.dhis2.loadbalancer.server.port=8080
+    restart: unless-stopped
+
+  reporting:
+    build:
+      context: .
+      dockerfile: src/NeoIPC.Reporting/Dockerfile
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_HTTP_PORTS: "8080"
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_PATHBASE: /reporting/api
+    networks:
+      - application
+      - frontend
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.reporting.rule=PathPrefix(`/reporting/api`)
+      - traefik.http.routers.reporting.entrypoints=web
+      - traefik.http.services.reporting.loadbalancer.server.port=8080
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  traefik:
+    image: traefik:${TRAEFIK_VERSION}
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=neoipc-reporting_frontend
+      - --entrypoints.web.address=:80
+      - --log.level=INFO
+    ports:
+      - "${TRAEFIK_PORT:-8080}:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - frontend
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  postgres:
+  dhis2:
+
+networks:
+  frontend:
+    name: neoipc-reporting_frontend
+  application:
+    name: neoipc-reporting_application
+  database:
+    name: neoipc-reporting_database
