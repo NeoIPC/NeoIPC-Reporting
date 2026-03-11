@@ -52,6 +52,7 @@ RUN apt-get -qq update && \
         r-base-core \
         fonts-ebgaramond \
         fonts-ebgaramond-extra \
+        fonts-noto-core \
         locales && \
     locale-gen de_DE.UTF-8 el_GR.UTF-8 en_GB.UTF-8 es_ES.UTF-8 et_EE.UTF-8 it_IT.UTF-8 tr_TR.UTF-8 && \
     apt-get -qq purge --auto-remove software-properties-common dirmngr && \
