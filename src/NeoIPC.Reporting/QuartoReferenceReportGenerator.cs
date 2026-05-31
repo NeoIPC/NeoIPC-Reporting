@@ -69,6 +69,6 @@ sealed partial class QuartoReferenceReportGenerator :
         SupportedLanguageDictionary = t.ToFrozenDictionary(StringComparer.Ordinal);
     }
 
-    [GeneratedRegex(@"Reference Report\.(.+)\.qmd")]
+    [GeneratedRegex(@"Reference-Report\.(.+)\.qmd")]
     private static partial Regex GetReferenceReportTranslationFileRegex();
 }
