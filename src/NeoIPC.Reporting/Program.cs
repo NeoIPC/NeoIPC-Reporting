@@ -84,6 +84,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRequestTimeouts();
 
 app.MapGet("reference-report", ReferenceReport.Get)
     .WithName("GetReferenceReport")

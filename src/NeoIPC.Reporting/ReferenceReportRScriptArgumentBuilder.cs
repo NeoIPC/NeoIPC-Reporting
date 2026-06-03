@@ -76,5 +76,25 @@ public static class ReferenceReportRScriptArgumentBuilder
             yield return "--validationExceptionFile";
             yield return p.ValidationExceptionFile;
         }
+        if (p.Dhis2Scheme is not null)
+        {
+            yield return "--scheme";
+            yield return p.Dhis2Scheme;
+        }
+        if (p.Dhis2Hostname is not null)
+        {
+            yield return "--host";
+            yield return p.Dhis2Hostname;
+        }
+        if (p.Dhis2Port.HasValue)
+        {
+            yield return "--port";
+            yield return p.Dhis2Port.Value.ToString(CultureInfo.InvariantCulture);
+        }
+        if (p.Dhis2Path is not null)
+        {
+            yield return "--path";
+            yield return p.Dhis2Path;
+        }
     }
 }

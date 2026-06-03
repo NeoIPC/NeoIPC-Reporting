@@ -4,10 +4,11 @@ namespace NeoIPC.Reporting;
 
 /// <summary>
 /// Renders the Partner-Report to PDF or HTML via Quarto. Always needs
-/// a partner-data JSON on disk before <c>Generate()</c> fires; the
-/// handler stages that file (either by streaming the request body in
-/// dataFile mode or by running <see cref="PartnerDataStager"/> in
-/// online mode) and tells the generator where it landed via
+/// a partner-data JSON on disk before <c>Generate()</c> fires. In
+/// dataFile (POST) mode the handler streams the request body to disk;
+/// in online (GET) mode <c>Partner-Report.qmd</c>'s <c>_setup.qmd</c>
+/// runs the neoipcr import inline and writes the JSON itself. Either
+/// way the handler tells the generator where the file landed via
 /// <see cref="SetPartnerDataPath"/>.
 /// </summary>
 sealed class QuartoPartnerReportGenerator : QuartoReportGenerator

@@ -36,7 +36,7 @@ sealed class RScriptReferenceReportGenerator : RScriptReportGenerator
             showMessage: Environment.IsDevelopment()));
     }
 
-    protected override string? ReportFileDownloadName { get; }
+    protected override string? ReportFileDownloadName => "Reference-Report-Data";
     public override ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     public static FrozenDictionary<string, string> SupportedLanguageDictionary { get; } =
