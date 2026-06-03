@@ -3,6 +3,20 @@ using static NeoIPC.Reporting.Helpers;
 
 namespace NeoIPC.Reporting;
 
+/// <summary>
+/// Common machinery for any generator that produces a report by
+/// shelling out to an external process and streaming its stdout to the
+/// caller. Subclasses provide the <see cref="ProcessStartInfo"/>, the
+/// download filename, and the error-mapping logic.
+/// </summary>
+/// <remarks>
+/// Subclasses today: <see cref="QuartoReportGenerator"/> (Quarto +
+/// LaTeX) and <see cref="RScriptReportGenerator"/> (raw Rscript JSON
+/// output). The base class buffers stdout into a memory stream so the
+/// subprocess can finish before the response starts flowing — this
+/// lets the error-handling path replace the response with a 5xx
+/// ProblemDetails when the subprocess fails after partial output.
+/// </remarks>
 abstract partial class ExternalProcessReportGenerator : IDataGenerator
 {
     protected string MediaType { get; }

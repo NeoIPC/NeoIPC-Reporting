@@ -4,21 +4,26 @@ using Microsoft.Extensions.Options;
 namespace NeoIPC.Reporting;
 
 /// <summary>
-/// JSON-output path for the Reference-Report (<c>Accept: application/json</c>).
-/// Returns the raw R-script output without rendering Quarto. Today only
-/// the <c>en</c> language is supported on this path; the heavier locale
-/// pipeline lives entirely in the Quarto generator.
+/// JSON-output path for the Partner-Report (<c>Accept: application/json</c>
+/// on GET). Runs <c>Generate-PartnerData.R</c> with the negotiated
+/// filters; the R script writes the partner data JSON to stdout, which
+/// the base class streams back as the response body.
 /// </summary>
-sealed class RScriptReferenceReportGenerator : RScriptReportGenerator
+/// <remarks>
+/// Not selectable in dataFile mode (POST) — the body of a POST already
+/// IS the partner data JSON, and a JSON Accept on dataFile mode would
+/// just echo the body. The handler short-circuits that case.
+/// </remarks>
+sealed class RScriptPartnerReportGenerator : RScriptReportGenerator
 {
-    readonly ReferenceReportRenderParameters _renderParameters;
+    readonly PartnerReportRenderParameters _renderParameters;
     readonly string _scriptPath;
 
-    public RScriptReferenceReportGenerator(
+    public RScriptPartnerReportGenerator(
         string mediaType,
         ResolvedLocale locale,
-        ReferenceReportApiParameters apiParameters,
-        ReferenceReportRenderParameters renderParameters,
+        PartnerReportApiParameters apiParameters,
+        PartnerReportRenderParameters renderParameters,
         IOptions<ReportingOptions> options,
         IWebHostEnvironment environment,
         ILogger logger)
@@ -26,7 +31,7 @@ sealed class RScriptReferenceReportGenerator : RScriptReportGenerator
     {
         _renderParameters = renderParameters;
         _scriptPath = Path.Combine(
-            options.Value.ReportsSourceDir, "Reference-Report", "Generate-ReferenceData.R");
+            options.Value.ReportsSourceDir, "Partner-Report", "Generate-PartnerData.R");
     }
 
     protected sealed override ValueTask<DataResult> HandleError(int processId, int exitCode,
@@ -36,7 +41,7 @@ sealed class RScriptReferenceReportGenerator : RScriptReportGenerator
             showMessage: Environment.IsDevelopment()));
     }
 
-    protected override string? ReportFileDownloadName { get; }
+    protected override string? ReportFileDownloadName => "Partner-Report-Data";
     public override ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     public static FrozenDictionary<string, string> SupportedLanguageDictionary { get; } =
@@ -44,10 +49,12 @@ sealed class RScriptReferenceReportGenerator : RScriptReportGenerator
         {
             { "en", "en" },
             { "en-GB", "en" },
+            { "de", "de" },
+            { "de-DE", "de" },
         }.ToFrozenDictionary();
 
     protected override IEnumerable<string> GetReportParameters() =>
-        ReferenceReportRScriptArgumentBuilder.Build(_renderParameters);
+        PartnerReportRScriptArgumentBuilder.Build(_renderParameters, outputFilePath: null);
 
     protected override string ReportFilePath => _scriptPath;
 }

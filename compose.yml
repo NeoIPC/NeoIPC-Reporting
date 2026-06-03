@@ -65,6 +65,9 @@ services:
       ASPNETCORE_HTTP_PORTS: "8080"
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_PATHBASE: /reporting/api
+    volumes:
+      - reference-data:/home/app/NeoIPC/ReferenceData
+      - validation-exceptions:/home/app/NeoIPC/ValidationExceptions
     networks:
       - application
       - frontend
@@ -103,6 +106,8 @@ services:
 volumes:
   postgres:
   dhis2:
+  reference-data:
+  validation-exceptions:
 
 networks:
   frontend:

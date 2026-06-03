@@ -1,21 +1,61 @@
-﻿using Microsoft.AspNetCore.Mvc.Formatters;
+using Microsoft.Extensions.Options;
 
 namespace NeoIPC.Reporting;
 
-class QuartoPartnerReportGenerator(string mediaType, string language, IWebHostEnvironment environment, ILogger logger) :
-    QuartoReportGenerator("", mediaType, "", language, environment, logger)
+/// <summary>
+/// Renders the Partner-Report to PDF or HTML via Quarto. Always needs
+/// a partner-data JSON on disk before <c>Generate()</c> fires; the
+/// handler stages that file (either by streaming the request body in
+/// dataFile mode or by running <see cref="PartnerDataStager"/> in
+/// online mode) and tells the generator where it landed via
+/// <see cref="SetPartnerDataPath"/>.
+/// </summary>
+sealed class QuartoPartnerReportGenerator : QuartoReportGenerator
 {
-    protected override string? ReportFileDownloadName { get; }
+    public const string ReportName = "Partner-Report";
+
+    readonly PartnerReportApiParameters _apiParameters;
+    readonly PartnerReportRenderParameters _renderParameters;
+    string? _partnerDataPath;
+
+    public QuartoPartnerReportGenerator(
+        string mediaType,
+        ResolvedLocale locale,
+        PartnerReportApiParameters apiParameters,
+        PartnerReportRenderParameters renderParameters,
+        IOptions<ReportingOptions> options,
+        ReportLanguageRegistry registry,
+        IWebHostEnvironment environment,
+        ILogger logger)
+        : base(ReportName, mediaType, locale, apiParameters.SessionId,
+            options, registry, environment, logger)
+    {
+        _apiParameters = apiParameters;
+        _renderParameters = renderParameters;
+    }
+
+    /// <summary>
+    /// The path the handler should stage the partner-data JSON to —
+    /// inside the per-render workdir so it gets cleaned up alongside
+    /// every other intermediate file when the generator disposes.
+    /// </summary>
+    public string PartnerDataStagingPath =>
+        Path.Join(WorkingDirectory.FullName, "partner-data.json");
+
+    /// <summary>Records the partner-data file path picked up by Quarto's <c>-P partnerDataFile</c>.</summary>
+    public void SetPartnerDataPath(string path) => _partnerDataPath = path;
+
+    protected override string? ReportFileDownloadName => "Partner-Report";
+
+    protected override IEnumerable<string> GetAdditionalProfiles()
+    {
+        var profile = string.IsNullOrEmpty(_apiParameters.Profile) ? "default" : _apiParameters.Profile;
+        yield return profile;
+    }
 
     protected override IEnumerable<string> GetReportParameters()
     {
-        throw new NotImplementedException();
-    }
-
-    protected override string ReportFileName { get; }
-
-    public static QuartoPartnerReportGenerator Create(string mediaType, string[] acceptedLanguages)
-    {
-        throw new NotImplementedException();
+        var rp = _renderParameters with { PartnerDataFile = _partnerDataPath };
+        return PartnerReportQuartoArgumentBuilder.Build(rp);
     }
 }

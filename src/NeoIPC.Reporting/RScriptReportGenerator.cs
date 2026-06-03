@@ -1,25 +1,47 @@
-﻿using System.Collections.Frozen;
+using System.Collections.Frozen;
 using System.Diagnostics;
+using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
 
 namespace NeoIPC.Reporting;
 
+/// <summary>
+/// Base class for generators that produce a JSON response by running
+/// a single <c>Rscript</c> invocation and streaming its stdout back.
+/// </summary>
+/// <remarks>
+/// Subclasses provide <see cref="ReportFilePath"/> and the args
+/// (<see cref="ExternalProcessReportGenerator.GetProcessStartInfo"/>
+/// final composition lives here in the base; subclasses contribute
+/// the per-script args via the abstract members). The R script is
+/// invoked with the JSESSIONID as an env var so neoipcr authenticates
+/// against the live DHIS2 instance.
+/// </remarks>
 abstract class RScriptReportGenerator : ExternalProcessReportGenerator
 {
-    protected RScriptReportGenerator(string mediaType, string language, string sessionId, IWebHostEnvironment environment, ILogger logger) : base(mediaType, environment, logger)
+    readonly ReportingOptions _options;
+
+    protected RScriptReportGenerator(
+        string mediaType,
+        ResolvedLocale locale,
+        string sessionId,
+        IOptions<ReportingOptions> options,
+        IWebHostEnvironment environment,
+        ILogger logger) : base(mediaType, environment, logger)
     {
-        Language = language;
+        Locale = locale;
         SessionId = sessionId;
+        _options = options.Value;
     }
 
     public string SessionId { get; }
-    public string Language { get; }
+    public ResolvedLocale Locale { get; }
     protected abstract IEnumerable<string> GetReportParameters();
     protected abstract string ReportFilePath { get; }
 
     protected sealed override ProcessStartInfo GetProcessStartInfo()
     {
-        return new ProcessStartInfo("Rscript", GetArguments())
+        var startInfo = new ProcessStartInfo("Rscript", GetArguments())
         {
             UseShellExecute = false,
             CreateNoWindow = true,
@@ -29,11 +51,18 @@ abstract class RScriptReportGenerator : ExternalProcessReportGenerator
             EnvironmentVariables =
             {
                 ["NEOIPC_DHIS2_SESSION_ID"] = SessionId,
-                ["LANGUAGE="] = "en_GB:en",
-                ["LANG"] = "C.utf8",
-                ["LC_ALL"] = "C.utf8"
-            }
+                ["LANGUAGE"] = Locale.Language,
+                ["LANG"] = Locale.LcAll,
+                ["LC_ALL"] = Locale.LcAll,
+            },
         };
+
+        if (_options.BuildMode == BuildMode.Workspace)
+            startInfo.EnvironmentVariables["NEOIPCR_DEV_PATH"] = "/neoipcr";
+        else
+            startInfo.EnvironmentVariables.Remove("NEOIPCR_DEV_PATH");
+
+        return startInfo;
 
         IEnumerable<string> GetArguments()
         {
@@ -45,6 +74,8 @@ abstract class RScriptReportGenerator : ExternalProcessReportGenerator
     }
 
     public static readonly FrozenDictionary<string, MediaTypeHeaderValue> SupportedMediaTypeHeaderValues =
-        new[] { "application/json" }.Select(s => new KeyValuePair<string, MediaTypeHeaderValue>(s, new MediaTypeHeaderValue(s)))
+        new[] { "application/json" }
+            .Select(s => new KeyValuePair<string, MediaTypeHeaderValue>(s,
+                new MediaTypeHeaderValue(s)))
             .ToFrozenDictionary(StringComparer.Ordinal);
 }

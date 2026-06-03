@@ -1,5 +1,17 @@
 ﻿namespace NeoIPC.Reporting;
 
+/// <summary>
+/// Outcome of a single <see cref="IDataGenerator.Generate"/> call:
+/// either a streamed payload (the rendered report) wrapped in an
+/// <see cref="IResult"/>, or a typed error response (ProblemDetails or
+/// a bare status code).
+/// </summary>
+/// <remarks>
+/// The generator either returns a successful <see cref="DataResult"/>
+/// pointing at the buffered output stream, or an error variant whose
+/// <see cref="Result"/> property already encodes how the framework
+/// should respond. The handler always returns <c>Result</c>.
+/// </remarks>
 readonly struct DataResult : IAsyncDisposable
 {
     public DataResult()

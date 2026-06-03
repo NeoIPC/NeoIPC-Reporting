@@ -8,14 +8,33 @@
     <DockerfileContext>..\..</DockerfileContext>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <!-- The Surveillance-Toolkit reports root, made available to the source generator
+         via <AdditionalFiles>. Default points at the workspace layout; the Dockerfile
+         overrides this to /toolkit-reports for in-container builds. -->
+    <NeoIpcReportsDir Condition="'$(NeoIpcReportsDir)' == ''">$(MSBuildThisFileDirectory)..\..\..\Surveillance-Toolkit\reports</NeoIpcReportsDir>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0-rc.1.25451.107" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0-preview.4" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- ToDo: Use RScript files from the reports in the Surveillance-Toolkit repository -->
-    <Content Include="R\getReferenceData.R" Condition="Exists('R\getReferenceData.R')">
+    <ProjectReference Include="..\NeoIPC.Reporting.Generators\NeoIPC.Reporting.Generators.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup Condition="Exists('$(NeoIpcReportsDir)')">
+    <AdditionalFiles Include="$(NeoIpcReportsDir)\Reference-Report\Reference-Report.qmd"
+                     Condition="Exists('$(NeoIpcReportsDir)\Reference-Report\Reference-Report.qmd')" />
+    <AdditionalFiles Include="$(NeoIpcReportsDir)\Partner-Report\Partner-Report.qmd"
+                     Condition="Exists('$(NeoIpcReportsDir)\Partner-Report\Partner-Report.qmd')" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="scripts\**\*.R">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
