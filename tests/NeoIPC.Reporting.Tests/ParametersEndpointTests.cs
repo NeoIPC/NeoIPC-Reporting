@@ -19,8 +19,8 @@ namespace NeoIPC.Reporting.Tests;
 /// Skipped on the default <c>dotnet test</c> invocation (filter
 /// <c>Category!=Integration</c> in CI's PR job). Runs on
 /// <c>--filter Category=Integration</c>, which CI invokes only via
-/// <c>workflow_dispatch</c> or the nightly schedule because it needs
-/// Docker available on the runner.
+/// <c>workflow_dispatch</c> because it needs Docker available on
+/// the runner.
 /// </para>
 /// <para>
 /// The image tag is taken from the <c>NEOIPC_REPORTING_IMAGE_TAG</c>

@@ -65,6 +65,7 @@ services:
       ASPNETCORE_HTTP_PORTS: "8080"
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_PATHBASE: /reporting/api
+      Reporting__Dhis2BaseUrl: http://dhis2-backend:8080
     volumes:
       - reference-data:/home/app/NeoIPC/ReferenceData
       - validation-exceptions:/home/app/NeoIPC/ValidationExceptions
