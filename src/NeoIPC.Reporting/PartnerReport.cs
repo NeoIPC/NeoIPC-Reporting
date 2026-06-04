@@ -55,6 +55,7 @@ class PartnerReport
         [FromQuery] bool? includeOutlierInterpretation,
         [FromQuery] PartnerReportElement[] enabledElements,
         [FromQuery] PartnerReportElement[] disabledElements,
+        [FromQuery] bool fragmentMode,
         [FromServices] IOptions<ReportingOptions> options,
         [FromServices] ReportLanguageRegistry registry,
         [FromServices] ReferenceDataStorage referenceDataStorage,
@@ -75,6 +76,7 @@ class PartnerReport
                 includeOutlierInterpretation, enabledElements, disabledElements,
                 httpRequest),
             partnerDataBody: null,
+            fragmentMode,
             options, registry, referenceDataStorage, validationExceptionStorage, dhis2Endpoint,
             environment, logger, cancellationToken);
     }
@@ -92,6 +94,7 @@ class PartnerReport
         [FromQuery] bool? includeOutlierInterpretation,
         [FromQuery] PartnerReportElement[] enabledElements,
         [FromQuery] PartnerReportElement[] disabledElements,
+        [FromQuery] bool fragmentMode,
         [FromServices] IOptions<ReportingOptions> options,
         [FromServices] ReportLanguageRegistry registry,
         [FromServices] ReferenceDataStorage referenceDataStorage,
@@ -119,6 +122,7 @@ class PartnerReport
                 includeIntroductionTexts, includeMethodsTexts, includeOutlierInterpretation,
                 enabledElements, disabledElements, httpRequest),
             partnerDataBody: httpRequest.Body,
+            fragmentMode,
             options, registry, referenceDataStorage, validationExceptionStorage, dhis2Endpoint,
             environment, logger, cancellationToken);
     }
@@ -168,6 +172,7 @@ class PartnerReport
     static async Task<IResult> Handle(
         PartnerReportApiParameters apiParameters,
         Stream? partnerDataBody,
+        bool fragmentMode,
         IOptions<ReportingOptions> options,
         ReportLanguageRegistry registry,
         ReferenceDataStorage referenceDataStorage,
@@ -180,6 +185,15 @@ class PartnerReport
         if (apiParameters.AcceptHeaders.IsDefaultOrEmpty
             || apiParameters.AcceptLanguageHeaders.IsDefaultOrEmpty)
             return Results.StatusCode(406);
+
+        // API-boundary YAML safety; see ReferenceReport for the rationale.
+        var unsafeInput = InputValidation.RejectUnsafeStrings(
+            (nameof(apiParameters.ReferenceDataFile), apiParameters.ReferenceDataFile),
+            (nameof(apiParameters.Locale), apiParameters.Locale),
+            (nameof(apiParameters.Profile), apiParameters.Profile),
+            (nameof(apiParameters.ValidationExceptionFile), apiParameters.ValidationExceptionFile))
+            ?? InputValidation.RejectUnsafeStringArray(nameof(apiParameters.UnitCodes), apiParameters.UnitCodes);
+        if (unsafeInput is not null) return unsafeInput;
 
         if (apiParameters.UnitCodes is null or { Length: 0 })
             return ProblemDetailsHelper.BadRequest(
@@ -244,7 +258,8 @@ class PartnerReport
             }
 
             var dataResult = await generator.Generate(cancellationToken);
-            return dataResult.Result;
+            return await HtmlFragmentTransformer.MaybeFragmentize(
+                dataResult, generator.MediaType, fragmentMode, cancellationToken);
         }
     }
 

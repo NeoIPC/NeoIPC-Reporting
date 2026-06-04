@@ -1,0 +1,319 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "_comment": "Snapshot extracted by tools/Generate-ReportSchemas.ps1. Do not edit by hand.",
+  "sourceQmd": "reports/Reference-Report/Reference-Report.qmd",
+  "sourceCommit": "33e9016-dirty",
+  "params": [
+    {
+      "qmdName": "referenceDataFile",
+      "rType": "character",
+      "defaultValue": null,
+      "range": null,
+      "values": [],
+      "description": "Path to a JSON reference dataset (admin-uploaded). When set, the report\nrenders the stored dataset; ad-hoc live-fetch filter parameters are\nnot used in this mode."
+    },
+    {
+      "qmdName": "reportingPeriodFrom",
+      "rType": "Date",
+      "defaultValue": null,
+      "range": null,
+      "values": [],
+      "description": "Start of the reporting period (inclusive)."
+    },
+    {
+      "qmdName": "reportingPeriodTo",
+      "rType": "Date",
+      "defaultValue": null,
+      "range": null,
+      "values": [],
+      "description": "End of the reporting period (inclusive)."
+    },
+    {
+      "qmdName": "birthWeightFrom",
+      "rType": "integer",
+      "defaultValue": null,
+      "range": "0..65535",
+      "values": [],
+      "description": "Lower bound (inclusive) of the birth-weight filter, in grams."
+    },
+    {
+      "qmdName": "birthWeightTo",
+      "rType": "integer",
+      "defaultValue": null,
+      "range": "0..65535",
+      "values": [],
+      "description": "Upper bound (inclusive) of the birth-weight filter, in grams."
+    },
+    {
+      "qmdName": "gestationWeeksFrom",
+      "rType": "integer",
+      "defaultValue": null,
+      "range": "0..52",
+      "values": [],
+      "description": "Lower bound (inclusive) of the gestational-age filter, in weeks."
+    },
+    {
+      "qmdName": "gestationWeeksTo",
+      "rType": "integer",
+      "defaultValue": null,
+      "range": "0..52",
+      "values": [],
+      "description": "Upper bound (inclusive) of the gestational-age filter, in weeks."
+    },
+    {
+      "qmdName": "reportingCountries",
+      "rType": "character[]",
+      "defaultValue": null,
+      "range": null,
+      "values": [],
+      "description": "ISO 3166-1 alpha-2 country codes to include."
+    },
+    {
+      "qmdName": "hospitalFilter",
+      "rType": "character[]",
+      "defaultValue": null,
+      "range": null,
+      "values": [],
+      "description": "Hospital codes (NeoIPC site codes) to include."
+    },
+    {
+      "qmdName": "testUnitFilter",
+      "rType": "logical",
+      "defaultValue": "true",
+      "range": null,
+      "values": [],
+      "description": "Apply the test-unit filter."
+    },
+    {
+      "qmdName": "defaultPatientFilter",
+      "rType": "logical",
+      "defaultValue": "true",
+      "range": null,
+      "values": [],
+      "description": "Apply the default patient filter."
+    },
+    {
+      "qmdName": "validationExceptionFile",
+      "rType": "character",
+      "defaultValue": null,
+      "range": null,
+      "values": [],
+      "description": "Path to a validation-exception file (admin-uploaded) used to suppress\nspecific known false-positive validation findings during this render."
+    },
+    {
+      "qmdName": "dhis2Scheme",
+      "rType": "character",
+      "defaultValue": null,
+      "range": null,
+      "values": [
+        "http",
+        "https"
+      ],
+      "description": "DHIS2 endpoint scheme (http or https). Server-side override; not\nexposed via the public API."
+    },
+    {
+      "qmdName": "dhis2Hostname",
+      "rType": "character",
+      "defaultValue": null,
+      "range": null,
+      "values": [],
+      "description": "DHIS2 endpoint hostname. Server-side override; not exposed via the\npublic API."
+    },
+    {
+      "qmdName": "dhis2Port",
+      "rType": "integer",
+      "defaultValue": null,
+      "range": "1..65535",
+      "values": [],
+      "description": "DHIS2 endpoint TCP port. Server-side override; not exposed via the\npublic API."
+    },
+    {
+      "qmdName": "dhis2Path",
+      "rType": "character",
+      "defaultValue": null,
+      "range": null,
+      "values": [],
+      "description": "DHIS2 API path prefix. Server-side override; not exposed via the\npublic API."
+    },
+    {
+      "qmdName": "sparseDataThreshold",
+      "rType": "integer",
+      "defaultValue": "16",
+      "range": "1..",
+      "values": [],
+      "description": "Threshold for sparse-data handling."
+    },
+    {
+      "qmdName": "includeConfidenceIntervals",
+      "rType": "character",
+      "defaultValue": "all",
+      "range": null,
+      "values": [
+        "all",
+        "rate",
+        "none"
+      ],
+      "description": "Confidence-interval display mode."
+    },
+    {
+      "qmdName": "includeIntroductionTexts",
+      "rType": "logical",
+      "defaultValue": "true",
+      "range": null,
+      "values": [],
+      "description": "Include report-section introduction texts."
+    },
+    {
+      "qmdName": "includeMethodsTexts",
+      "rType": "logical",
+      "defaultValue": "true",
+      "range": null,
+      "values": [],
+      "description": "Include report-section methods texts."
+    },
+    {
+      "qmdName": "includeTextPatientPopulation",
+      "rType": "logical",
+      "defaultValue": "true",
+      "range": null,
+      "values": [],
+      "description": "Include the patient-population section text."
+    },
+    {
+      "qmdName": "includeTextNosocomial",
+      "rType": "logical",
+      "defaultValue": "true",
+      "range": null,
+      "values": [],
+      "description": "Include the nosocomial-infection section text."
+    },
+    {
+      "qmdName": "includeTextInfectiousAgents",
+      "rType": "logical",
+      "defaultValue": "true",
+      "range": null,
+      "values": [],
+      "description": "Include the infectious-agents section text."
+    },
+    {
+      "qmdName": "includeTextRiskFactors",
+      "rType": "logical",
+      "defaultValue": "true",
+      "range": null,
+      "values": [],
+      "description": "Include the risk-factors section text."
+    },
+    {
+      "qmdName": "includeTextSurgery",
+      "rType": "logical",
+      "defaultValue": "true",
+      "range": null,
+      "values": [],
+      "description": "Include the surgery section text."
+    },
+    {
+      "qmdName": "includeBirthWeightFigure",
+      "rType": "logical",
+      "defaultValue": "true",
+      "range": null,
+      "values": [],
+      "description": "Include the birth-weight distribution figure."
+    },
+    {
+      "qmdName": "includeGestationalAgeFigure",
+      "rType": "logical",
+      "defaultValue": "true",
+      "range": null,
+      "values": [],
+      "description": "Include the gestational-age distribution figure."
+    },
+    {
+      "qmdName": "includeIncidenceDensityTable",
+      "rType": "logical",
+      "defaultValue": "true",
+      "range": null,
+      "values": [],
+      "description": "Include the incidence-density table."
+    },
+    {
+      "qmdName": "includeDeviceAssociatedIncidenceDensityTable",
+      "rType": "logical",
+      "defaultValue": "true",
+      "range": null,
+      "values": [],
+      "description": "Include the device-associated incidence-density table."
+    },
+    {
+      "qmdName": "includeAgentPerInfectionRateTable",
+      "rType": "logical",
+      "defaultValue": "true",
+      "range": null,
+      "values": [],
+      "description": "Include the agent-per-infection rate table."
+    },
+    {
+      "qmdName": "includeResistantPathogenInfectionRateTable",
+      "rType": "logical",
+      "defaultValue": "false",
+      "range": null,
+      "values": [],
+      "description": "Include the resistant-pathogen-infection rate table."
+    },
+    {
+      "qmdName": "includeOrganismResistanceRateTable",
+      "rType": "logical",
+      "defaultValue": "false",
+      "range": null,
+      "values": [],
+      "description": "Include the organism-resistance rate table."
+    },
+    {
+      "qmdName": "includeInfectiousAgentDetectionRateTable",
+      "rType": "logical",
+      "defaultValue": "true",
+      "range": null,
+      "values": [],
+      "description": "Include the infectious-agent-detection rate table."
+    },
+    {
+      "qmdName": "includeAntibioticResistanceTestRateTable",
+      "rType": "logical",
+      "defaultValue": "false",
+      "range": null,
+      "values": [],
+      "description": "Include the antibiotic-resistance-test rate table."
+    },
+    {
+      "qmdName": "includeRiskDensityRateTable",
+      "rType": "logical",
+      "defaultValue": "true",
+      "range": null,
+      "values": [],
+      "description": "Include the risk-density rate table."
+    },
+    {
+      "qmdName": "includeAntibioticUtilisationTable",
+      "rType": "logical",
+      "defaultValue": "false",
+      "range": null,
+      "values": [],
+      "description": "Include the antibiotic-utilisation table."
+    },
+    {
+      "qmdName": "includeSurgicalProcedureRateTable",
+      "rType": "logical",
+      "defaultValue": "true",
+      "range": null,
+      "values": [],
+      "description": "Include the surgical-procedure rate table."
+    },
+    {
+      "qmdName": "includeSecondaryBsiRateTable",
+      "rType": "logical",
+      "defaultValue": "false",
+      "range": null,
+      "values": [],
+      "description": "Include the secondary-BSI rate table."
+    }
+  ]
+}

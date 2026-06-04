@@ -19,7 +19,7 @@ namespace NeoIPC.Reporting;
 /// </remarks>
 abstract partial class ExternalProcessReportGenerator : IDataGenerator
 {
-    protected string MediaType { get; }
+    public string MediaType { get; }
     protected IWebHostEnvironment Environment { get; }
     public ILogger Logger { get; }
 

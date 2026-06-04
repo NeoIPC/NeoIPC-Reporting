@@ -50,6 +50,7 @@ class ReferenceReport
         [FromQuery] ReferenceReportElement[] disabledElements,
         [FromQuery] ReferenceReportSectionText[] enabledSectionTexts,
         [FromQuery] ReferenceReportSectionText[] disabledSectionTexts,
+        [FromQuery] bool fragmentMode,
         [FromServices] IOptions<ReportingOptions> options,
         [FromServices] ReportLanguageRegistry registry,
         [FromServices] ReferenceDataStorage referenceDataStorage,
@@ -65,6 +66,19 @@ class ReferenceReport
         var (sessionId, accept, acceptLang) = ReportRequestBase.ReadHeaders(httpRequest);
         if (accept.IsDefaultOrEmpty || acceptLang.IsDefaultOrEmpty)
             return Results.StatusCode(406);
+
+        // API-boundary YAML safety: every string-typed param flows into a
+        // Quarto -P single-line YAML scalar. Reject control characters
+        // here rather than escaping them at the argv layer; see
+        // InputValidation for the rule.
+        var unsafeInput = InputValidation.RejectUnsafeStrings(
+            (nameof(referenceDataId), referenceDataId),
+            (nameof(locale), locale),
+            (nameof(profile), profile),
+            (nameof(validationExceptionFile), validationExceptionFile))
+            ?? InputValidation.RejectUnsafeStringArray(nameof(countryFilter), countryFilter)
+            ?? InputValidation.RejectUnsafeStringArray(nameof(hospitalFilter), hospitalFilter);
+        if (unsafeInput is not null) return unsafeInput;
 
         var hasStoredDataMode = !string.IsNullOrEmpty(referenceDataId);
 
@@ -154,7 +168,8 @@ class ReferenceReport
         await using (generator)
         {
             var dataResult = await generator.Generate(cancellationToken);
-            return dataResult.Result;
+            return await HtmlFragmentTransformer.MaybeFragmentize(
+                dataResult, generator.MediaType, fragmentMode, cancellationToken);
         }
     }
 

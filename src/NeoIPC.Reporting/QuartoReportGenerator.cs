@@ -231,7 +231,7 @@ abstract partial class QuartoReportGenerator : ExternalProcessReportGenerator
         };
 
         if (_options.BuildMode == BuildMode.Workspace)
-            startInfo.EnvironmentVariables["NEOIPCR_DEV_PATH"] = "/neoipcr";
+            startInfo.EnvironmentVariables["NEOIPCR_DEV_PATH"] = _options.NeoIpcrDevPath;
         else
             startInfo.EnvironmentVariables.Remove("NEOIPCR_DEV_PATH");
 

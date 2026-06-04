@@ -11,15 +11,15 @@ namespace NeoIPC.Reporting.Generators;
 /// API surface.
 /// </summary>
 /// <remarks>
-/// For every report whose master <c>.qmd</c> is registered as an
-/// <c>&lt;AdditionalFiles&gt;</c> entry on the project, the generator
+/// For every report whose <c>.qmd-schema.json</c> snapshot is registered
+/// as an <c>&lt;AdditionalFiles&gt;</c> entry on the project, the generator
 /// emits three artifacts:
 /// <list type="bullet">
 ///   <item><description>
 ///   <c>partial record &lt;Report&gt;RenderParameters</c> — typed
-///   reflection of every QMD <c>params:</c> entry. Names, types, and
-///   defaults are pulled from the QMD verbatim. The <i>internal</i>
-///   contract.
+///   reflection of every entry in the schema snapshot. Names, types, and
+///   defaults are pulled from the snapshot, which mirrors the upstream
+///   QMD <c>params:</c> block verbatim. The <i>internal</i> contract.
 ///   </description></item>
 ///   <item><description>
 ///   <c>&lt;Report&gt;QuartoArgumentBuilder.Build(p)</c> — yields one
@@ -42,26 +42,27 @@ namespace NeoIPC.Reporting.Generators;
 /// <list type="bullet">
 ///   <item><description><b>NRP001</b> — an
 ///   <c>&lt;Report&gt;ApiParameters</c> declaration with one or more
-///   <c>[RenderParameter]</c> properties has no matching QMD-derived
+///   <c>[RenderParameter]</c> properties has no matching schema-derived
 ///   <c>&lt;Report&gt;RenderParameters</c>. Likely a missing
-///   <c>&lt;AdditionalFiles&gt;</c> entry.</description></item>
+///   <c>&lt;AdditionalFiles&gt;</c> entry, or a stale snapshot — re-run
+///   <c>tools/Generate-ReportSchemas.ps1</c>.</description></item>
 ///   <item><description><b>NRP002</b> — a
-///   <c>[RenderParameter("name")]</c> attribute references a QMD param
-///   that doesn't exist (typo or QMD-side rename).</description></item>
+///   <c>[RenderParameter("name")]</c> attribute references a param that
+///   doesn't exist in the snapshot (typo or QMD-side rename).</description></item>
 /// </list>
 /// </remarks>
 [Generator]
 public sealed class ParameterRecordGenerator : IIncrementalGenerator
 {
-    static readonly DiagnosticDescriptor NoMatchingQmd = new(
+    static readonly DiagnosticDescriptor NoMatchingSchema = new(
         id: "NRP001",
-        title: "No matching QMD for ApiParameters",
-        messageFormat: "No QMD-derived RenderParameters record '{1}' found for '{0}'; ensure the corresponding .qmd file is in <AdditionalFiles>",
+        title: "No matching schema snapshot for ApiParameters",
+        messageFormat: "No schema-derived RenderParameters record '{1}' found for '{0}'; ensure the corresponding .qmd-schema.json is in <AdditionalFiles> (re-run tools/Generate-ReportSchemas.ps1 if the snapshot is missing)",
         category: "NeoIPC.Reporting.Generators",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
-    static readonly DiagnosticDescriptor UnknownQmdParam = new(
+    static readonly DiagnosticDescriptor UnknownSchemaParam = new(
         id: "NRP002",
         title: "RenderParameter references unknown param",
         messageFormat: "[RenderParameter(\"{0}\")] references a parameter that does not exist in {1}",
@@ -71,14 +72,14 @@ public sealed class ParameterRecordGenerator : IIncrementalGenerator
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        var qmdSchemas = context.AdditionalTextsProvider
-            .Where(static f => f.Path.EndsWith(".qmd", StringComparison.OrdinalIgnoreCase))
-            .Select(static (file, ct) => QmdParser.Parse(file, ct))
+        var reportSchemas = context.AdditionalTextsProvider
+            .Where(static f => f.Path.EndsWith(".qmd-schema.json", StringComparison.OrdinalIgnoreCase))
+            .Select(static (file, ct) => ReportSchemaParser.Parse(file, ct))
             .Where(static s => s is not null)
             .Select(static (s, _) => s!);
 
-        context.RegisterSourceOutput(qmdSchemas, EmitRenderParametersRecord);
-        context.RegisterSourceOutput(qmdSchemas, EmitQuartoArgumentBuilder);
+        context.RegisterSourceOutput(reportSchemas, EmitRenderParametersRecord);
+        context.RegisterSourceOutput(reportSchemas, EmitQuartoArgumentBuilder);
 
         var apiSchemas = context.SyntaxProvider.CreateSyntaxProvider(
             static (node, _) => node is RecordDeclarationSyntax,
@@ -86,11 +87,11 @@ public sealed class ParameterRecordGenerator : IIncrementalGenerator
             .Where(static s => s is not null)
             .Select(static (s, _) => s!);
 
-        var paired = apiSchemas.Combine(qmdSchemas.Collect());
+        var paired = apiSchemas.Combine(reportSchemas.Collect());
         context.RegisterSourceOutput(paired, EmitApiPartial);
     }
 
-    static void EmitRenderParametersRecord(SourceProductionContext spc, QmdSchema schema)
+    static void EmitRenderParametersRecord(SourceProductionContext spc, ReportSchema schema)
     {
         var sb = new StringBuilder();
         sb.Append("// <auto-generated>\n");
@@ -113,7 +114,7 @@ public sealed class ParameterRecordGenerator : IIncrementalGenerator
         spc.AddSource($"{schema.RecordName}.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
     }
 
-    static void EmitQuartoArgumentBuilder(SourceProductionContext spc, QmdSchema schema)
+    static void EmitQuartoArgumentBuilder(SourceProductionContext spc, ReportSchema schema)
     {
         var className = schema.RecordName.EndsWith("RenderParameters")
             ? schema.RecordName.Substring(0, schema.RecordName.Length - "RenderParameters".Length) + "QuartoArgumentBuilder"
@@ -149,7 +150,7 @@ public sealed class ParameterRecordGenerator : IIncrementalGenerator
         spc.AddSource($"{className}.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
     }
 
-    static void EmitArgumentLine(StringBuilder sb, QmdParameter p)
+    static void EmitArgumentLine(StringBuilder sb, ReportParameter p)
     {
         var prop = "p." + p.PropertyName;
         var key = p.QmdName;
@@ -184,7 +185,7 @@ public sealed class ParameterRecordGenerator : IIncrementalGenerator
         }
     }
 
-    static void EmitProperty(StringBuilder sb, QmdParameter p)
+    static void EmitProperty(StringBuilder sb, ReportParameter p)
     {
         if (!string.IsNullOrEmpty(p.Description))
         {
@@ -206,47 +207,47 @@ public sealed class ParameterRecordGenerator : IIncrementalGenerator
 
     static void EmitApiPartial(
         SourceProductionContext spc,
-        (ApiSchema Api, ImmutableArray<QmdSchema> Qmds) tuple)
+        (ApiSchema Api, ImmutableArray<ReportSchema> Schemas) tuple)
     {
-        var (api, qmds) = tuple;
+        var (api, schemas) = tuple;
 
         var renderRecordName = api.TypeName.EndsWith("ApiParameters")
             ? api.TypeName.Substring(0, api.TypeName.Length - "ApiParameters".Length) + "RenderParameters"
             : api.TypeName + "RenderParameters";
 
-        var qmd = qmds.FirstOrDefault(q => q.RecordName == renderRecordName);
+        var schema = schemas.FirstOrDefault(q => q.RecordName == renderRecordName);
 
         var hasRenderParameterProperties = api.Properties.Any(p => p.QmdName is not null);
 
-        // Validate: every [RenderParameter] must reference an existing QMD param.
+        // Validate: every [RenderParameter] must reference an existing schema param.
         if (hasRenderParameterProperties)
         {
-            if (qmd is null)
+            if (schema is null)
             {
                 foreach (var prop in api.Properties)
                 {
                     if (prop.QmdName is null) continue;
                     spc.ReportDiagnostic(Diagnostic.Create(
-                        NoMatchingQmd, prop.Location, api.TypeName, renderRecordName));
+                        NoMatchingSchema, prop.Location, api.TypeName, renderRecordName));
                 }
                 return;
             }
 
-            var qmdNames = qmd.Parameters.Select(p => p.QmdName).ToImmutableHashSet();
+            var schemaNames = schema.Parameters.Select(p => p.QmdName).ToImmutableHashSet();
             foreach (var prop in api.Properties)
             {
                 if (prop.QmdName is null) continue;
-                if (!qmdNames.Contains(prop.QmdName))
+                if (!schemaNames.Contains(prop.QmdName))
                 {
                     spc.ReportDiagnostic(Diagnostic.Create(
-                        UnknownQmdParam, prop.Location, prop.QmdName, qmd.SourceFileName));
+                        UnknownSchemaParam, prop.Location, prop.QmdName, schema.SourceFileName));
                 }
             }
         }
 
-        if (qmd is null) return;
+        if (schema is null) return;
 
-        var qmdByName = qmd.Parameters.ToDictionary(p => p.QmdName);
+        var schemaByName = schema.Parameters.ToDictionary(p => p.QmdName);
 
         var sb = new StringBuilder();
         sb.Append("// <auto-generated/>\n");
@@ -271,7 +272,7 @@ public sealed class ParameterRecordGenerator : IIncrementalGenerator
         }
         sb.Append("    };\n\n");
 
-        EmitSchema(sb, api, qmdByName);
+        EmitSchema(sb, api, schemaByName);
 
         sb.Append("}\n");
 
@@ -281,7 +282,7 @@ public sealed class ParameterRecordGenerator : IIncrementalGenerator
     static void EmitSchema(
         StringBuilder sb,
         ApiSchema api,
-        Dictionary<string, QmdParameter> qmdByName)
+        Dictionary<string, ReportParameter> schemaByName)
     {
         sb.Append("    public static global::System.Collections.Immutable.ImmutableArray<global::NeoIPC.Reporting.ApiParameterSchema> Schema { get; } =\n");
         sb.Append("    [\n");
@@ -295,13 +296,13 @@ public sealed class ParameterRecordGenerator : IIncrementalGenerator
             string[]? values = null;
             string? description = null;
 
-            if (prop.QmdName is not null && qmdByName.TryGetValue(prop.QmdName, out var qmdParam))
+            if (prop.QmdName is not null && schemaByName.TryGetValue(prop.QmdName, out var schemaParam))
             {
-                type = qmdParam.RType;
-                defaultValue = qmdParam.DefaultValue;
-                range = qmdParam.Range;
-                values = qmdParam.Values.IsDefaultOrEmpty ? null : qmdParam.Values.ToArray();
-                description = string.IsNullOrEmpty(qmdParam.Description) ? null : qmdParam.Description;
+                type = schemaParam.RType;
+                defaultValue = schemaParam.DefaultValue;
+                range = schemaParam.Range;
+                values = schemaParam.Values.IsDefaultOrEmpty ? null : schemaParam.Values.ToArray();
+                description = string.IsNullOrEmpty(schemaParam.Description) ? null : schemaParam.Description;
             }
             else
             {

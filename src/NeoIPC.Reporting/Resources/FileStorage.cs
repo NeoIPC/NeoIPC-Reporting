@@ -27,7 +27,12 @@ namespace NeoIPC.Reporting.Resources;
 /// </remarks>
 public abstract partial class FileStorage
 {
-    [GeneratedRegex(@"^[0-9a-f]{32}$", RegexOptions.CultureInvariant)]
+    // \A and \z (not ^ and $) — \z anchors to end-of-string with no
+    // exception for a trailing newline. .NET regex's $ matches both
+    // end-of-string AND just before a final \n, which would let an
+    // input like "32hex\n" slip through this guard. Same for ^ vs \A
+    // for symmetry / belt-and-braces.
+    [GeneratedRegex(@"\A[0-9a-f]{32}\z", RegexOptions.CultureInvariant)]
     private static partial Regex IdRegexFactory();
 
     static readonly Regex s_idRegex = IdRegexFactory();

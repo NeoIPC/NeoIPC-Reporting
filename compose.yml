@@ -24,7 +24,7 @@ services:
       retries: 5
     restart: unless-stopped
 
-  app:
+  dhis2-backend:
     image: dhis2/core:${DHIS2_VERSION}
     depends_on:
       database:
@@ -49,9 +49,9 @@ services:
       start_period: 120s
     labels:
       - traefik.enable=true
-      - traefik.http.routers.dhis2.rule=PathPrefix(`/`)
-      - traefik.http.routers.dhis2.entrypoints=web
-      - traefik.http.services.dhis2.loadbalancer.server.port=8080
+      - traefik.http.routers.dhis2-backend.rule=PathPrefix(`/`)
+      - traefik.http.routers.dhis2-backend.entrypoints=web
+      - traefik.http.services.dhis2-backend.loadbalancer.server.port=8080
     restart: unless-stopped
 
   reporting:
@@ -59,7 +59,7 @@ services:
       context: .
       dockerfile: src/NeoIPC.Reporting/Dockerfile
     depends_on:
-      app:
+      dhis2-backend:
         condition: service_healthy
     environment:
       ASPNETCORE_HTTP_PORTS: "8080"
@@ -68,6 +68,11 @@ services:
     volumes:
       - reference-data:/home/app/NeoIPC/ReferenceData
       - validation-exceptions:/home/app/NeoIPC/ValidationExceptions
+      # Per-render workdirs (symlink-trees + Quarto intermediate output)
+      # live under /tmp/NeoIPC.Reporting/. A tmpfs here keeps render
+      # state out of the layered filesystem and discards it on restart.
+      - type: tmpfs
+        target: /tmp
     networks:
       - application
       - frontend

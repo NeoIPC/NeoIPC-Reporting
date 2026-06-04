@@ -1,0 +1,106 @@
+name: build-and-test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      reports_repo:
+        description: "REPORTS_REPO build-arg"
+        default: "https://github.com/NeoIPC/Surveillance-Toolkit.git"
+        required: false
+      reports_branch:
+        description: "REPORTS_BRANCH build-arg"
+        default: "main"
+        required: false
+      neoipcr_repo:
+        description: "NEOIPCR_REPO build-arg"
+        default: "Brar/neoipcr"
+        required: false
+      neoipcr_branch:
+        description: "NEOIPCR_BRANCH build-arg"
+        default: "TowardsReferenceReport"
+        required: false
+
+# Cancel in-progress runs of this workflow on the same ref. A push that
+# obsoletes a still-running PR build shouldn't waste minutes finishing.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    name: Unit + generator tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+          dotnet-quality: preview
+      - name: Restore
+        run: dotnet restore tests/NeoIPC.Reporting.Tests/NeoIPC.Reporting.Tests.csproj
+      - name: Test (Category != Integration)
+        run: >
+          dotnet test tests/NeoIPC.Reporting.Tests/NeoIPC.Reporting.Tests.csproj
+          --no-restore
+          --filter "Category!=Integration"
+          --logger "trx;LogFileName=test-results.trx"
+          --results-directory TestResults
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: TestResults/
+
+  integration:
+    # The integration tests need a running container, so they need
+    # Docker and a built image. Today this only runs on manual dispatch
+    # because the dev-branch source-of-truth (Brar/*#PartnerReport) is
+    # not yet pushed; once the toolkit's main branch carries the
+    # localization infrastructure (Invoke-Localization.ps1, po/, etc.)
+    # this can move to scheduled / on every push.
+    name: Integration tests
+    if: github.event_name == 'workflow_dispatch'
+    needs: unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+          dotnet-quality: preview
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build image
+        run: |
+          docker build \
+            -f src/NeoIPC.Reporting/Dockerfile \
+            --build-arg REPORTS_SOURCE=github-branch \
+            --build-arg REPORTS_REPO="${{ inputs.reports_repo }}" \
+            --build-arg REPORTS_BRANCH="${{ inputs.reports_branch }}" \
+            --build-arg NEOIPCR_SOURCE=github-branch \
+            --build-arg NEOIPCR_REPO="${{ inputs.neoipcr_repo }}" \
+            --build-arg NEOIPCR_BRANCH="${{ inputs.neoipcr_branch }}" \
+            -t neoipc-reporting:integration-test \
+            .
+      - name: Restore
+        run: dotnet restore tests/NeoIPC.Reporting.Tests/NeoIPC.Reporting.Tests.csproj
+      - name: Test (Category = Integration)
+        env:
+          NEOIPC_REPORTING_IMAGE_TAG: neoipc-reporting:integration-test
+        run: >
+          dotnet test tests/NeoIPC.Reporting.Tests/NeoIPC.Reporting.Tests.csproj
+          --no-restore
+          --filter "Category=Integration"
+          --logger "trx;LogFileName=integration-results.trx"
+          --results-directory TestResults
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: TestResults/

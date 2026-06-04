@@ -12,9 +12,9 @@ public sealed class ReportingOptions
     /// <summary>
     /// Read-only directory holding the Surveillance-Toolkit reports tree
     /// (one subdirectory per report, plus shared resource dirs and
-    /// top-level YAML files). In container builds this is <c>/reports</c>;
-    /// in workspace builds the project's csproj <c>NeoIpcReportsDir</c>
-    /// defaults it to the sibling Surveillance-Toolkit checkout.
+    /// top-level YAML files). In container builds this defaults to
+    /// <c>/toolkit/reports</c>; in workspace IDE launches a relative
+    /// path is resolved against the host environment's ContentRoot.
     /// </summary>
     /// <remarks>
     /// The toolkit's <c>glossary*.yaml</c> files live one level above this
@@ -22,7 +22,7 @@ public sealed class ReportingOptions
     /// matching the toolkit's repo layout. The per-render layout in
     /// <see cref="QuartoReportGenerator"/> picks them up from there.
     /// </remarks>
-    public string ReportsSourceDir { get; set; } = "/reports";
+    public string ReportsSourceDir { get; set; } = "/toolkit/reports";
 
     /// <summary>
     /// Per-render scratch root. Each render creates a fresh
@@ -54,11 +54,20 @@ public sealed class ReportingOptions
     /// Selects the source-acquisition mode at build time. Used at
     /// runtime only to decide whether to set <c>NEOIPCR_DEV_PATH</c> on
     /// child R processes (in <see cref="BuildMode.Workspace"/> mode the
-    /// service runs against the workspace's editable neoipcr checkout
-    /// at <c>/neoipcr</c>; otherwise neoipcr is installed via pak and
-    /// the env-var override is left unset).
+    /// service runs against an editable neoipcr checkout at
+    /// <see cref="NeoIpcrDevPath"/>; otherwise neoipcr is installed via
+    /// pak and the env-var override is left unset).
     /// </summary>
-    public BuildMode BuildMode { get; set; } = BuildMode.GithubMain;
+    public BuildMode BuildMode { get; set; } = BuildMode.GithubBranch;
+
+    /// <summary>
+    /// Path passed as <c>NEOIPCR_DEV_PATH</c> to child R processes when
+    /// <see cref="BuildMode"/> is <see cref="BuildMode.Workspace"/>.
+    /// Container default is <c>/neoipcr</c>; workspace IDE launches
+    /// override this with a path resolvable from the host ContentRoot
+    /// to the workspace's neoipcr checkout.
+    /// </summary>
+    public string NeoIpcrDevPath { get; set; } = "/neoipcr";
 
     /// <summary>Storage root for admin-uploaded reference datasets.</summary>
     public string ReferenceDataDir { get; set; } = "/home/app/NeoIPC/ReferenceData";
@@ -74,12 +83,12 @@ public sealed class ReportingOptions
 /// </summary>
 public enum BuildMode
 {
-    /// <summary>Default for nightly / dev images: cloned from GitHub <c>main</c>.</summary>
-    GithubMain,
+    /// <summary>Default: cloned from a git branch (mutable ref).</summary>
+    GithubBranch,
 
-    /// <summary>Tagged release: cloned from a specific GitHub tag.</summary>
-    GithubRelease,
+    /// <summary>Cloned from a git tag (immutable ref).</summary>
+    GithubTag,
 
-    /// <summary>Workspace build: COPYed from the parent submodule checkout (editable).</summary>
+    /// <summary>Workspace build: COPYed from a sibling checkout (editable).</summary>
     Workspace,
 }
