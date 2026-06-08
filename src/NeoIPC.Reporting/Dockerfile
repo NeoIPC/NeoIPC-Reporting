@@ -136,8 +136,9 @@ RUN set -eu; \
 # ----------------------------------------------------------------------------
 # Stage: r-runtime — shared parent for r-builder-base and the final-image
 # base stage. Carries everything both paths need: R + the binary CRAN
-# packages our reports import + bspm wired into Rprofile.site so any future
-# install.packages() call routes through apt → r2u → binary.
+# packages our reports import, pre-installed so the runtime image performs no
+# install.packages() at render time (and so needs neither a compiler nor an
+# apt bridge there).
 # ----------------------------------------------------------------------------
 # Why the shared parent: previously r-builder-base (build path) and base
 # (runtime path) each apt-installed r-base-core independently from
@@ -205,15 +206,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         r-cran-jsonlite \
         r-cran-lubridate \
         r-cran-uuid \
-        r-cran-tidyselect \
-        # bspm bridges install.packages() → apt so any pak-resolved CRAN
-        # transitive dep we missed above still routes through r2u.
-        python3-dbus python3-gi python3-apt \
-        r-cran-bspm
-
-RUN RHOME=$(R RHOME) && \
-    echo "suppressMessages(bspm::enable())" >> ${RHOME}/etc/Rprofile.site && \
-    echo "options(bspm.version.check=FALSE)" >> ${RHOME}/etc/Rprofile.site
+        r-cran-tidyselect
 
 # ----------------------------------------------------------------------------
 # Stage: install dev tools needed to source-build neoipcr from GitHub.
@@ -321,6 +314,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     rm -f /etc/apt/apt.conf.d/docker-clean && \
     apt-get -qq update && \
+    # Pull Ubuntu (noble) security updates into the runtime image for packages
+    # inherited from r-runtime / the aspnet base — gnutls28, libgcrypt20,
+    # xz-utils, expat, cairo, python3, etc. — so it ships the latest
+    # noble-patched versions rather than the base image's snapshot.
+    apt-get -qq upgrade -y && \
     apt-get -qq install --no-install-recommends \
         fonts-ebgaramond \
         fonts-ebgaramond-extra \
@@ -328,6 +326,24 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         fonts-noto-extra \
         locales && \
     locale-gen de_DE.UTF-8 el_GR.UTF-8 en_GB.UTF-8 es_ES.UTF-8 et_EE.UTF-8 it_IT.UTF-8 tr_TR.UTF-8
+
+# Attack-surface reduction: drop build-/desktop-only packages that have no role
+# at render time, so they neither ship in nor get scanned against the image.
+#   xdg-utils, packagekit, policykit-1   - desktop/D-Bus tooling, no daemon here
+#   elfutils                              - eu-* dev tools (libelf1/libdw1 kept)
+#   software-properties-common           - build-only (add-apt-repository); its
+#                                           removal orphans the python3 stack
+#   python3-cryptography, python3-jwt     - Python libs the .NET service never calls
+# autoremove --purge then sweeps the now-orphaned transitive deps (the python3
+# interpreter included, if nothing kept depends on it). autoremove removes only
+# auto-installed orphans, so explicitly-installed runtime deps (ca-certificates,
+# r-base-core, the r-cran-* set) are untouched.
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get -qq purge -y \
+        xdg-utils packagekit policykit-1 elfutils \
+        software-properties-common python3-cryptography python3-jwt && \
+    apt-get -qq autoremove -y --purge
 
 # Runtime layout convention (matches the per-render layout in
 # QuartoReportGenerator.cs — see ReportingOptions.ReportsSourceDir):
