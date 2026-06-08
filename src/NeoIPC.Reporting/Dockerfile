@@ -331,19 +331,18 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # at render time, so they neither ship in nor get scanned against the image.
 #   xdg-utils, packagekit, policykit-1   - desktop/D-Bus tooling, no daemon here
 #   elfutils                              - eu-* dev tools (libelf1/libdw1 kept)
-#   software-properties-common           - build-only (add-apt-repository); its
-#                                           removal orphans the python3 stack
+#   software-properties-common           - build-only (add-apt-repository)
 #   python3-cryptography, python3-jwt     - Python libs the .NET service never calls
-# autoremove --purge then sweeps the now-orphaned transitive deps (the python3
-# interpreter included, if nothing kept depends on it). autoremove removes only
-# auto-installed orphans, so explicitly-installed runtime deps (ca-certificates,
-# r-base-core, the r-cran-* set) are untouched.
+# Named purge only — NO `autoremove`. A blanket `autoremove --purge` here also
+# sweeps fontconfig (whose /etc/fonts/conf.d the next step writes into, and
+# which the font-rendering path needs), so we remove only these targets and
+# leave their orphaned deps in place. The python3 interpreter therefore stays —
+# patched by the apt upgrade above, and not reachable from any runtime path.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get -qq purge -y \
         xdg-utils packagekit policykit-1 elfutils \
-        software-properties-common python3-cryptography python3-jwt && \
-    apt-get -qq autoremove -y --purge
+        software-properties-common python3-cryptography python3-jwt
 
 # Runtime layout convention (matches the per-render layout in
 # QuartoReportGenerator.cs — see ReportingOptions.ReportsSourceDir):
