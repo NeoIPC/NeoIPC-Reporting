@@ -38,10 +38,8 @@ internal sealed record ReportParameter(
 /// <summary>
 /// Reads a report's parameter-schema snapshot from
 /// <c>&lt;AdditionalFiles&gt;</c> and parses it into a
-/// <see cref="ReportSchema"/>. The snapshots are produced by
-/// <c>tools/Generate-ReportSchemas.ps1</c> in the
-/// workspace and committed into NeoIPC.Reporting so the source generator
-/// is self-contained.
+/// <see cref="ReportSchema"/>. The snapshots are committed into
+/// NeoIPC.Reporting so the source generator is self-contained.
 /// </summary>
 internal static class ReportSchemaParser
 {

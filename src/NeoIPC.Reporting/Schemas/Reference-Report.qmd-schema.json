@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "_comment": "Snapshot extracted by tools/Generate-ReportSchemas.ps1. Do not edit by hand.",
+  "_comment": "Snapshot extracted by scripts/Generate-ReportSchemas.ps1. Do not edit by hand.",
   "sourceQmd": "reports/Reference-Report/Reference-Report.qmd",
-  "sourceCommit": "33e9016-dirty",
+  "sourceCommit": "dd55621",
   "params": [
     {
       "qmdName": "referenceDataFile",

@@ -44,8 +44,7 @@ namespace NeoIPC.Reporting.Generators;
 ///   <c>&lt;Report&gt;ApiParameters</c> declaration with one or more
 ///   <c>[RenderParameter]</c> properties has no matching schema-derived
 ///   <c>&lt;Report&gt;RenderParameters</c>. Likely a missing
-///   <c>&lt;AdditionalFiles&gt;</c> entry, or a stale snapshot — re-run
-///   <c>tools/Generate-ReportSchemas.ps1</c>.</description></item>
+///   <c>&lt;AdditionalFiles&gt;</c> entry, or a stale snapshot.</description></item>
 ///   <item><description><b>NRP002</b> — a
 ///   <c>[RenderParameter("name")]</c> attribute references a param that
 ///   doesn't exist in the snapshot (typo or QMD-side rename).</description></item>
@@ -57,7 +56,7 @@ public sealed class ParameterRecordGenerator : IIncrementalGenerator
     static readonly DiagnosticDescriptor NoMatchingSchema = new(
         id: "NRP001",
         title: "No matching schema snapshot for ApiParameters",
-        messageFormat: "No schema-derived RenderParameters record '{1}' found for '{0}'; ensure the corresponding .qmd-schema.json is in <AdditionalFiles> (re-run tools/Generate-ReportSchemas.ps1 if the snapshot is missing)",
+        messageFormat: "No schema-derived RenderParameters record '{1}' found for '{0}'; ensure the corresponding .qmd-schema.json is in <AdditionalFiles> (re-run scripts/Generate-ReportSchemas.ps1 if the snapshot is missing)",
         category: "NeoIPC.Reporting.Generators",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);

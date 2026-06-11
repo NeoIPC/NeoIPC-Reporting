@@ -28,7 +28,7 @@
        params: blocks. The source generator (NeoIPC.Reporting.Generators)
        reads these via Roslyn's AdditionalTexts API and emits the
        *RenderParameters records. Regenerate with
-       tools/Generate-ReportSchemas.ps1 (in the workspace) after the
+       scripts/Generate-ReportSchemas.ps1 (in the workspace) after the
        upstream params change. -->
   <ItemGroup>
     <AdditionalFiles Include="Schemas\Partner-Report.qmd-schema.json" />
@@ -41,9 +41,9 @@
        [RenderParameter] property. Surface the real cause up-front. -->
   <Target Name="EnsureReportSchemas" BeforeTargets="CoreCompile">
     <Error Condition="!Exists('$(MSBuildThisFileDirectory)Schemas\Partner-Report.qmd-schema.json')"
-           Text="Missing Schemas\Partner-Report.qmd-schema.json. From the workspace root, run: pwsh tools\Generate-ReportSchemas.ps1" />
+           Text="Missing Schemas\Partner-Report.qmd-schema.json. From the workspace root, run: pwsh scripts\Generate-ReportSchemas.ps1" />
     <Error Condition="!Exists('$(MSBuildThisFileDirectory)Schemas\Reference-Report.qmd-schema.json')"
-           Text="Missing Schemas\Reference-Report.qmd-schema.json. From the workspace root, run: pwsh tools\Generate-ReportSchemas.ps1" />
+           Text="Missing Schemas\Reference-Report.qmd-schema.json. From the workspace root, run: pwsh scripts\Generate-ReportSchemas.ps1" />
   </Target>
 
   <ItemGroup>
