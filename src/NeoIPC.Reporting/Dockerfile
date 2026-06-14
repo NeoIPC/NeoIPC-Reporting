@@ -75,6 +75,12 @@ FROM toolkit-source-${REPORTS_SOURCE} AS toolkit-source
 FROM mcr.microsoft.com/powershell:7.4-debian-12 AS reports-builder
 ARG DEBIAN_FRONTEND=noninteractive
 
+# The base image exports LANG/LC_ALL=en_US.UTF-8, which this build-only stage never
+# generates, so Perl/po4a warn and fall back to the "C" locale. C.UTF-8 is built
+# into glibc (no locale-gen needed) and is UTF-8-aware, giving the pipeline a valid
+# locale without the warning.
+ENV LC_ALL=C.UTF-8 LANG=C.UTF-8
+
 # Dependencies the pipeline invokes: Perl + the modules po4a actually loads
 # for the [type: yaml] / [type: text] -o markdown / [type: asciidoc] /
 # [type: xml] configs the toolkit ships, plus gettext (msgmerge / msgcat),
