@@ -11,7 +11,7 @@ namespace NeoIPC.Reporting;
 /// way the handler tells the generator where the file landed via
 /// <see cref="SetPartnerDataPath"/>.
 /// </summary>
-sealed class QuartoPartnerReportGenerator : QuartoReportGenerator
+sealed class QuartoPartnerReportProducer : QuartoReportProducer
 {
     public const string ReportName = "Partner-Report";
 
@@ -19,7 +19,7 @@ sealed class QuartoPartnerReportGenerator : QuartoReportGenerator
     readonly PartnerReportRenderParameters _renderParameters;
     string? _partnerDataPath;
 
-    public QuartoPartnerReportGenerator(
+    public QuartoPartnerReportProducer(
         string mediaType,
         ResolvedLocale locale,
         PartnerReportApiParameters apiParameters,

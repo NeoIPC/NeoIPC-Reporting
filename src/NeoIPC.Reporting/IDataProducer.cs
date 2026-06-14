@@ -6,7 +6,7 @@ namespace NeoIPC.Reporting;
 /// (the symlink-forest workdir, staged temp files, …) on
 /// <see cref="IAsyncDisposable.DisposeAsync"/>.
 /// </summary>
-interface IDataGenerator : IAsyncDisposable
+interface IDataProducer : IAsyncDisposable
 {
     /// <summary>
     /// The media type the generator emits. Used by the endpoint layer

@@ -157,9 +157,9 @@ class ReferenceReport
         var renderParameters = ResolveRenderParameters(
             apiParameters, referenceDataStorage, validationExceptionStorage, dhis2Endpoint);
 
-        var quartoLanguages = registry.ForReport(QuartoReferenceReportGenerator.ReportName);
+        var quartoLanguages = registry.ForReport(QuartoReferenceReportProducer.ReportName);
 
-        var (generator, problem) = SelectGenerator(
+        var (generator, problem) = SelectProducer(
             apiParameters, renderParameters, quartoLanguages,
             options, registry, environment, logger);
         if (problem is not null) return problem;
@@ -229,7 +229,7 @@ class ReferenceReport
         return rp;
     }
 
-    static (IDataGenerator? Generator, IResult? Problem) SelectGenerator(
+    static (IDataProducer? Generator, IResult? Problem) SelectProducer(
         ReferenceReportApiParameters apiParameters,
         ReferenceReportRenderParameters renderParameters,
         IReadOnlyDictionary<string, string> quartoLanguages,
@@ -239,7 +239,7 @@ class ReferenceReport
         ILogger logger)
     {
         var quartoSupported = quartoLanguages.Keys.ToHashSet(StringComparer.Ordinal);
-        var rScriptSupported = RScriptReferenceReportGenerator.SupportedLanguageDictionary.Keys
+        var rScriptSupported = RScriptReferenceReportProducer.SupportedLanguageDictionary.Keys
             .ToHashSet(StringComparer.Ordinal);
 
         // Format has priority over language; exact-match passes first, then subset.
@@ -247,7 +247,7 @@ class ReferenceReport
         {
             var mediaType = acceptHeader.MediaType.ToString();
 
-            if (QuartoReportGenerator.SupportedMediaTypeHeaderValues.ContainsKey(mediaType))
+            if (QuartoReportProducer.SupportedMediaTypeHeaderValues.ContainsKey(mediaType))
             {
                 var (gen, problem) = TryQuarto(mediaType, apiParameters, renderParameters,
                     quartoSupported, options, registry, environment, logger);
@@ -255,7 +255,7 @@ class ReferenceReport
                 if (gen is not null) return (gen, null);
             }
 
-            if (RScriptReportGenerator.SupportedMediaTypeHeaderValues.ContainsKey(mediaType))
+            if (RScriptReportProducer.SupportedMediaTypeHeaderValues.ContainsKey(mediaType))
             {
                 var (gen, problem) = TryRScript(mediaType, apiParameters, renderParameters,
                     rScriptSupported, options, environment, logger);
@@ -267,7 +267,7 @@ class ReferenceReport
         foreach (var acceptHeader in apiParameters.AcceptHeaders)
         foreach (var mediaType in ReturnMediaTypePriorityList)
         {
-            if (QuartoReportGenerator.SupportedMediaTypeHeaderValues.TryGetValue(mediaType,
+            if (QuartoReportProducer.SupportedMediaTypeHeaderValues.TryGetValue(mediaType,
                     out var quartoValue) &&
                 quartoValue.IsSubsetOf(acceptHeader))
             {
@@ -277,7 +277,7 @@ class ReferenceReport
                 if (gen is not null) return (gen, null);
             }
 
-            if (RScriptReportGenerator.SupportedMediaTypeHeaderValues.TryGetValue(mediaType,
+            if (RScriptReportProducer.SupportedMediaTypeHeaderValues.TryGetValue(mediaType,
                     out var rScriptValue) &&
                 rScriptValue.IsSubsetOf(acceptHeader))
             {
@@ -291,7 +291,7 @@ class ReferenceReport
         return (null, null);
     }
 
-    static (IDataGenerator? Generator, IResult? Problem) TryQuarto(
+    static (IDataProducer? Generator, IResult? Problem) TryQuarto(
         string mediaType,
         ReferenceReportApiParameters apiParameters,
         ReferenceReportRenderParameters renderParameters,
@@ -310,13 +310,13 @@ class ReferenceReport
                     "Unsupported locale",
                     $"The 'locale' parameter '{apiParameters.Locale}' is not supported by this report.")),
             { Status: LocaleResolver.Status.Resolved, Locale: { } loc } =>
-                (new QuartoReferenceReportGenerator(mediaType, loc, apiParameters, renderParameters,
+                (new QuartoReferenceReportProducer(mediaType, loc, apiParameters, renderParameters,
                     options, registry, environment, logger), null),
             _ => (null, null),
         };
     }
 
-    static (IDataGenerator? Generator, IResult? Problem) TryRScript(
+    static (IDataProducer? Generator, IResult? Problem) TryRScript(
         string mediaType,
         ReferenceReportApiParameters apiParameters,
         ReferenceReportRenderParameters renderParameters,
@@ -334,7 +334,7 @@ class ReferenceReport
                     "Unsupported locale",
                     $"The 'locale' parameter '{apiParameters.Locale}' is not supported by this report.")),
             { Status: LocaleResolver.Status.Resolved, Locale: { } loc } =>
-                (new RScriptReferenceReportGenerator(mediaType, loc, apiParameters, renderParameters,
+                (new RScriptReferenceReportProducer(mediaType, loc, apiParameters, renderParameters,
                     options, environment, logger), null),
             _ => (null, null),
         };

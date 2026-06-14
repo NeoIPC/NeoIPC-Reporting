@@ -14,12 +14,12 @@ namespace NeoIPC.Reporting;
 /// IS the partner data JSON, and a JSON Accept on dataFile mode would
 /// just echo the body. The handler short-circuits that case.
 /// </remarks>
-sealed class RScriptPartnerReportGenerator : RScriptReportGenerator
+sealed class RScriptPartnerReportProducer : RScriptReportProducer
 {
     readonly PartnerReportRenderParameters _renderParameters;
     readonly string _scriptPath;
 
-    public RScriptPartnerReportGenerator(
+    public RScriptPartnerReportProducer(
         string mediaType,
         ResolvedLocale locale,
         PartnerReportApiParameters apiParameters,

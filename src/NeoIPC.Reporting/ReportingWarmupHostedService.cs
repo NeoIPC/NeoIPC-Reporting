@@ -7,7 +7,7 @@ namespace NeoIPC.Reporting;
 /// pipeline expects: the per-render temp root, the per-resource storage
 /// directories, and the per-report language registry. The actual
 /// per-render symlink layout is built lazily by
-/// <see cref="QuartoReportGenerator"/> on each request.
+/// <see cref="QuartoReportProducer"/> on each request.
 /// </summary>
 /// <remarks>
 /// <para>

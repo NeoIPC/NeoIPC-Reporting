@@ -4,7 +4,7 @@ namespace NeoIPC.Reporting;
 
 /// <summary>
 /// Builds the CLI args for <c>Generate-PartnerData.R</c>. Used by the
-/// JSON-output path (<see cref="RScriptPartnerReportGenerator"/>) which
+/// JSON-output path (<see cref="RScriptPartnerReportProducer"/>) which
 /// returns the raw partner dataset without rendering Quarto.
 /// </summary>
 /// <remarks>

@@ -9,13 +9,13 @@ namespace NeoIPC.Reporting;
 /// path before instantiating, so all the per-mode logic stays in
 /// <see cref="ReferenceReport.Get"/>.
 /// </summary>
-sealed class QuartoReferenceReportGenerator : QuartoReportGenerator
+sealed class QuartoReferenceReportProducer : QuartoReportProducer
 {
     public const string ReportName = "Reference-Report";
 
     readonly ReferenceReportRenderParameters _renderParameters;
 
-    public QuartoReferenceReportGenerator(
+    public QuartoReferenceReportProducer(
         string mediaType,
         ResolvedLocale locale,
         ReferenceReportApiParameters apiParameters,

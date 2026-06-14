@@ -11,17 +11,17 @@ namespace NeoIPC.Reporting;
 /// </summary>
 /// <remarks>
 /// Subclasses provide <see cref="ReportFilePath"/> and the args
-/// (<see cref="ExternalProcessReportGenerator.GetProcessStartInfo"/>
+/// (<see cref="ExternalProcessReportProducer.GetProcessStartInfo"/>
 /// final composition lives here in the base; subclasses contribute
 /// the per-script args via the abstract members). The R script is
 /// invoked with the JSESSIONID as an env var so neoipcr authenticates
 /// against the live DHIS2 instance.
 /// </remarks>
-abstract class RScriptReportGenerator : ExternalProcessReportGenerator
+abstract class RScriptReportProducer : ExternalProcessReportProducer
 {
     readonly ReportingOptions _options;
 
-    protected RScriptReportGenerator(
+    protected RScriptReportProducer(
         string mediaType,
         ResolvedLocale locale,
         string sessionId,

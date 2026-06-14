@@ -16,7 +16,7 @@ namespace NeoIPC.Reporting;
 ///   <c>get_benchmark_data(...)</c> directly when its
 ///   <c>partnerDataFile</c> param is null. For
 ///   <c>Accept: application/json</c> the handler picks
-///   <see cref="RScriptPartnerReportGenerator"/>, which spawns
+///   <see cref="RScriptPartnerReportProducer"/>, which spawns
 ///   <c>Generate-PartnerData.R</c> and streams the JSON back.</description></item>
 ///   <item><description><b>POST</b> with body — dataFile mode. The
 ///   request body IS the partner data JSON (the
@@ -227,9 +227,9 @@ class PartnerReport
         var renderParameters = ResolveRenderParameters(
             apiParameters, referenceDataStorage, validationExceptionStorage, dhis2Endpoint);
 
-        var quartoLanguages = registry.ForReport(QuartoPartnerReportGenerator.ReportName);
+        var quartoLanguages = registry.ForReport(QuartoPartnerReportProducer.ReportName);
 
-        var (generator, problem) = SelectGenerator(
+        var (generator, problem) = SelectProducer(
             apiParameters, renderParameters, partnerDataBody is not null,
             quartoLanguages, options, registry, environment, logger);
         if (problem is not null) return problem;
@@ -246,10 +246,10 @@ class PartnerReport
             // _setup.qmd does the live import_dhis2 + benchmark inline
             // when its partnerDataFile param is null.
             //
-            // RScriptPartnerReportGenerator (Accept: application/json) runs
+            // RScriptPartnerReportProducer (Accept: application/json) runs
             // Generate-PartnerData.R directly and streams stdout; not a
             // Quarto generator, so this branch is skipped for it.
-            if (generator is QuartoPartnerReportGenerator qpg && partnerDataBody is not null)
+            if (generator is QuartoPartnerReportProducer qpg && partnerDataBody is not null)
             {
                 var stagedPath = qpg.PartnerDataStagingPath;
                 await using var fs = File.Create(stagedPath);
@@ -298,7 +298,7 @@ class PartnerReport
         return rp;
     }
 
-    static (IDataGenerator? Generator, IResult? Problem) SelectGenerator(
+    static (IDataProducer? Generator, IResult? Problem) SelectProducer(
         PartnerReportApiParameters apiParameters,
         PartnerReportRenderParameters renderParameters,
         bool isDataFileMode,
@@ -309,14 +309,14 @@ class PartnerReport
         ILogger logger)
     {
         var quartoSupported = quartoLanguages.Keys.ToHashSet(StringComparer.Ordinal);
-        var rScriptSupported = RScriptPartnerReportGenerator.SupportedLanguageDictionary.Keys
+        var rScriptSupported = RScriptPartnerReportProducer.SupportedLanguageDictionary.Keys
             .ToHashSet(StringComparer.Ordinal);
 
         foreach (var acceptHeader in apiParameters.AcceptHeaders)
         {
             var mediaType = acceptHeader.MediaType.ToString();
 
-            if (QuartoReportGenerator.SupportedMediaTypeHeaderValues.ContainsKey(mediaType))
+            if (QuartoReportProducer.SupportedMediaTypeHeaderValues.ContainsKey(mediaType))
             {
                 var (gen, problem) = TryQuarto(mediaType, apiParameters, renderParameters,
                     quartoSupported, options, registry, environment, logger);
@@ -325,7 +325,7 @@ class PartnerReport
             }
 
             if (!isDataFileMode &&
-                RScriptReportGenerator.SupportedMediaTypeHeaderValues.ContainsKey(mediaType))
+                RScriptReportProducer.SupportedMediaTypeHeaderValues.ContainsKey(mediaType))
             {
                 var (gen, problem) = TryRScript(mediaType, apiParameters, renderParameters,
                     rScriptSupported, options, environment, logger);
@@ -337,7 +337,7 @@ class PartnerReport
         foreach (var acceptHeader in apiParameters.AcceptHeaders)
         foreach (var mediaType in ReturnMediaTypePriorityList)
         {
-            if (QuartoReportGenerator.SupportedMediaTypeHeaderValues.TryGetValue(mediaType,
+            if (QuartoReportProducer.SupportedMediaTypeHeaderValues.TryGetValue(mediaType,
                     out var quartoValue) &&
                 quartoValue.IsSubsetOf(acceptHeader))
             {
@@ -348,7 +348,7 @@ class PartnerReport
             }
 
             if (!isDataFileMode &&
-                RScriptReportGenerator.SupportedMediaTypeHeaderValues.TryGetValue(mediaType,
+                RScriptReportProducer.SupportedMediaTypeHeaderValues.TryGetValue(mediaType,
                     out var rScriptValue) &&
                 rScriptValue.IsSubsetOf(acceptHeader))
             {
@@ -362,7 +362,7 @@ class PartnerReport
         return (null, null);
     }
 
-    static (IDataGenerator? Generator, IResult? Problem) TryQuarto(
+    static (IDataProducer? Generator, IResult? Problem) TryQuarto(
         string mediaType,
         PartnerReportApiParameters apiParameters,
         PartnerReportRenderParameters renderParameters,
@@ -381,13 +381,13 @@ class PartnerReport
                     "Unsupported locale",
                     $"The 'locale' parameter '{apiParameters.Locale}' is not supported by this report.")),
             { Status: LocaleResolver.Status.Resolved, Locale: { } loc } =>
-                (new QuartoPartnerReportGenerator(mediaType, loc, apiParameters, renderParameters,
+                (new QuartoPartnerReportProducer(mediaType, loc, apiParameters, renderParameters,
                     options, registry, environment, logger), null),
             _ => (null, null),
         };
     }
 
-    static (IDataGenerator? Generator, IResult? Problem) TryRScript(
+    static (IDataProducer? Generator, IResult? Problem) TryRScript(
         string mediaType,
         PartnerReportApiParameters apiParameters,
         PartnerReportRenderParameters renderParameters,
@@ -405,7 +405,7 @@ class PartnerReport
                     "Unsupported locale",
                     $"The 'locale' parameter '{apiParameters.Locale}' is not supported by this report.")),
             { Status: LocaleResolver.Status.Resolved, Locale: { } loc } =>
-                (new RScriptPartnerReportGenerator(mediaType, loc, apiParameters, renderParameters,
+                (new RScriptPartnerReportProducer(mediaType, loc, apiParameters, renderParameters,
                     options, environment, logger), null),
             _ => (null, null),
         };

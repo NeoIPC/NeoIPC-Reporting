@@ -4,7 +4,7 @@ namespace NeoIPC.Reporting;
 
 /// <summary>
 /// Builds the CLI args for <c>Generate-ReferenceData.R</c>. Used by the
-/// JSON-output path (<see cref="RScriptReferenceReportGenerator"/>) which
+/// JSON-output path (<see cref="RScriptReferenceReportProducer"/>) which
 /// returns the raw reference dataset without rendering Quarto.
 /// </summary>
 /// <remarks>

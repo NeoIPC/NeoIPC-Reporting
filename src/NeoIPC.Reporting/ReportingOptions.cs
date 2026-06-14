@@ -20,7 +20,7 @@ public sealed class ReportingOptions
     /// The toolkit's <c>glossary*.yaml</c> files live one level above this
     /// directory (i.e. at <c>&lt;ReportsSourceDir&gt;/../glossary*.yaml</c>),
     /// matching the toolkit's repo layout. The per-render layout in
-    /// <see cref="QuartoReportGenerator"/> picks them up from there.
+    /// <see cref="QuartoReportProducer"/> picks them up from there.
     /// </remarks>
     public string ReportsSourceDir { get; set; } = "/toolkit/reports";
 
@@ -28,7 +28,7 @@ public sealed class ReportingOptions
     /// Per-render scratch root. Each render creates a fresh
     /// <c>render_&lt;random&gt;/</c> subdirectory under here. The
     /// per-render dir contains a symlink-tree layout (see
-    /// <see cref="QuartoReportGenerator"/>) that mirrors the toolkit's
+    /// <see cref="QuartoReportProducer"/>) that mirrors the toolkit's
     /// repo structure so the QMD's relative reaches
     /// (<c>../common.yaml</c>, <c>../../glossary.yaml</c>, etc.) resolve.
     /// </summary>

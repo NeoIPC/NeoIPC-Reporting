@@ -9,12 +9,12 @@ namespace NeoIPC.Reporting;
 /// the <c>en</c> language is supported on this path; the heavier locale
 /// pipeline lives entirely in the Quarto generator.
 /// </summary>
-sealed class RScriptReferenceReportGenerator : RScriptReportGenerator
+sealed class RScriptReferenceReportProducer : RScriptReportProducer
 {
     readonly ReferenceReportRenderParameters _renderParameters;
     readonly string _scriptPath;
 
-    public RScriptReferenceReportGenerator(
+    public RScriptReferenceReportProducer(
         string mediaType,
         ResolvedLocale locale,
         ReferenceReportApiParameters apiParameters,

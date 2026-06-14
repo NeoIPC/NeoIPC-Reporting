@@ -1,7 +1,7 @@
 ﻿namespace NeoIPC.Reporting;
 
 /// <summary>
-/// Outcome of a single <see cref="IDataGenerator.Generate"/> call:
+/// Outcome of a single <see cref="IDataProducer.Generate"/> call:
 /// either a streamed payload (the rendered report) wrapped in an
 /// <see cref="IResult"/>, or a typed error response (ProblemDetails or
 /// a bare status code).

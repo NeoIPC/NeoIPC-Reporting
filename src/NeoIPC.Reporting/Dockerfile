@@ -351,7 +351,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         software-properties-common python3-cryptography python3-jwt
 
 # Runtime layout convention (matches the per-render layout in
-# QuartoReportGenerator.cs — see ReportingOptions.ReportsSourceDir):
+# QuartoReportProducer.cs — see ReportingOptions.ReportsSourceDir):
 #   /toolkit/                 (toolkit root — read-only, owned by root)
 #     glossary*.yaml
 #     reports/

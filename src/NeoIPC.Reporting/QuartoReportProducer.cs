@@ -60,7 +60,7 @@ namespace NeoIPC.Reporting;
 /// recursively deleted; the read-only source tree is never touched.
 /// </para>
 /// </remarks>
-abstract partial class QuartoReportGenerator : ExternalProcessReportGenerator
+abstract partial class QuartoReportProducer : ExternalProcessReportProducer
 {
     readonly DirectoryInfo _renderRoot;
     readonly DirectoryInfo _workingDirectory;
@@ -70,7 +70,7 @@ abstract partial class QuartoReportGenerator : ExternalProcessReportGenerator
     public string SessionId { get; }
     public ResolvedLocale Locale { get; }
 
-    protected QuartoReportGenerator(
+    protected QuartoReportProducer(
         string reportName,
         string mediaType,
         ResolvedLocale locale,
@@ -194,7 +194,7 @@ abstract partial class QuartoReportGenerator : ExternalProcessReportGenerator
     /// <summary>
     /// The per-render workdir where the symlink-forest lives. Subclasses
     /// can stage extra files into this dir before <c>Generate()</c>
-    /// fires (e.g. <see cref="QuartoPartnerReportGenerator"/> stages a
+    /// fires (e.g. <see cref="QuartoPartnerReportProducer"/> stages a
     /// transient partner-data JSON here in online mode).
     /// </summary>
     protected DirectoryInfo WorkingDirectory => _workingDirectory;
@@ -203,7 +203,7 @@ abstract partial class QuartoReportGenerator : ExternalProcessReportGenerator
     /// Lets a subclass contribute additional Quarto profile names
     /// (<c>--profile</c>) on top of the locale profile and the
     /// auto-injected "minimal" profile for HTML. Used by
-    /// <see cref="QuartoPartnerReportGenerator"/> to select between
+    /// <see cref="QuartoPartnerReportProducer"/> to select between
     /// <c>full</c> and <c>default</c> profile groups.
     /// </summary>
     protected virtual IEnumerable<string> GetAdditionalProfiles()

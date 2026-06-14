@@ -10,20 +10,20 @@ namespace NeoIPC.Reporting;
 /// download filename, and the error-mapping logic.
 /// </summary>
 /// <remarks>
-/// Subclasses today: <see cref="QuartoReportGenerator"/> (Quarto +
-/// LaTeX) and <see cref="RScriptReportGenerator"/> (raw Rscript JSON
+/// Subclasses today: <see cref="QuartoReportProducer"/> (Quarto +
+/// LaTeX) and <see cref="RScriptReportProducer"/> (raw Rscript JSON
 /// output). The base class buffers stdout into a memory stream so the
 /// subprocess can finish before the response starts flowing — this
 /// lets the error-handling path replace the response with a 5xx
 /// ProblemDetails when the subprocess fails after partial output.
 /// </remarks>
-abstract partial class ExternalProcessReportGenerator : IDataGenerator
+abstract partial class ExternalProcessReportProducer : IDataProducer
 {
     public string MediaType { get; }
     protected IWebHostEnvironment Environment { get; }
     public ILogger Logger { get; }
 
-    protected ExternalProcessReportGenerator(string mediaType, IWebHostEnvironment environment, ILogger logger)
+    protected ExternalProcessReportProducer(string mediaType, IWebHostEnvironment environment, ILogger logger)
     {
         MediaType = mediaType;
         Environment = environment;
