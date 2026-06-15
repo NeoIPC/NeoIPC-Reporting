@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using NeoIPC.Reporting.Resources;
@@ -31,14 +32,21 @@ namespace NeoIPC.Reporting;
 /// Both modes accept the optional opaque <c>referenceDataFile</c> id
 /// (resolved against <see cref="ReferenceDataStorage"/>) so the report
 /// can compare the partner unit's metrics to the reference benchmark.
+/// Access requires the <c>F_NEOIPC_REPORT</c> authority (or higher);
+/// the gate is enforced in-handler, after request-shape validation, so
+/// the negative-path checks (missing unitCodes, etc.) stay reachable
+/// for the integration tests' placeholder sessions. The single
+/// admin-uploaded validation-exception file (if any) is folded in
+/// automatically. Each content figure/table is an explicit
+/// <c>includeX</c> render flag; the app maps presets onto them
+/// client-side. The Quarto profile is derived server-side from locale +
+/// output format and is not part of the API surface.
 /// </remarks>
 class PartnerReport
 {
     public static async Task<IResult> Get(
         [FromQuery] string? referenceDataFile,
         [FromQuery] string? locale,
-        [FromQuery] string? profile,
-        [FromQuery] string? validationExceptionFile,
         [FromQuery] string[] unitCodes,
         [FromQuery] DateOnly? reportingPeriodFrom,
         [FromQuery] DateOnly? reportingPeriodTo,
@@ -53,56 +61,87 @@ class PartnerReport
         [FromQuery] bool? includeIntroductionTexts,
         [FromQuery] bool? includeMethodsTexts,
         [FromQuery] bool? includeOutlierInterpretation,
-        [FromQuery] PartnerReportElement[] enabledElements,
-        [FromQuery] PartnerReportElement[] disabledElements,
+        [FromQuery] bool? includeBirthWeightFigure,
+        [FromQuery] bool? includeGestationalAgeFigure,
+        [FromQuery] bool? includeIncidenceDensityTable,
+        [FromQuery] bool? includeDeviceAssociatedIncidenceDensityTable,
+        [FromQuery] bool? includeAgentPerInfectionRateTable,
+        [FromQuery] bool? includeInfectiousAgentDetectionRateTable,
+        [FromQuery] bool? includeRiskDensityRateTable,
+        [FromQuery] bool? includeAntibioticUtilisationTable,
+        [FromQuery] bool? includeSurgicalProcedureRateTable,
+        [FromQuery] bool? includeResistantPathogenInfectionRateTable,
+        [FromQuery] bool? includeOrganismResistanceRateTable,
+        [FromQuery] bool? includeAntibioticResistanceTestRateTable,
+        [FromQuery] bool? includeSecondaryBsiRateTable,
         [FromQuery] bool fragmentMode,
         [FromServices] IOptions<ReportingOptions> options,
         [FromServices] ReportLanguageRegistry registry,
         [FromServices] ReferenceDataStorage referenceDataStorage,
         [FromServices] ValidationExceptionStorage validationExceptionStorage,
         [FromServices] Dhis2Endpoint dhis2Endpoint,
+        [FromServices] IAuthorizationService authorizationService,
         [FromServices] IWebHostEnvironment environment,
         [FromServices] ILogger<PartnerReport> logger,
         HttpRequest httpRequest,
+        HttpContext httpContext,
         CancellationToken cancellationToken)
     {
         return await Handle(
             apiParameters: BuildApiParameters(
-                referenceDataFile, locale, profile, validationExceptionFile,
+                referenceDataFile, locale,
                 unitCodes, reportingPeriodFrom, reportingPeriodTo,
                 birthWeightFrom, birthWeightTo, gestationalAgeFrom, gestationalAgeTo,
                 includeNonCorePatients, includeTestData, sparseDataThreshold,
                 confidenceIntervals, includeIntroductionTexts, includeMethodsTexts,
-                includeOutlierInterpretation, enabledElements, disabledElements,
+                includeOutlierInterpretation,
+                includeBirthWeightFigure, includeGestationalAgeFigure,
+                includeIncidenceDensityTable, includeDeviceAssociatedIncidenceDensityTable,
+                includeAgentPerInfectionRateTable, includeInfectiousAgentDetectionRateTable,
+                includeRiskDensityRateTable, includeAntibioticUtilisationTable,
+                includeSurgicalProcedureRateTable, includeResistantPathogenInfectionRateTable,
+                includeOrganismResistanceRateTable, includeAntibioticResistanceTestRateTable,
+                includeSecondaryBsiRateTable,
                 httpRequest),
             partnerDataBody: null,
             fragmentMode,
             options, registry, referenceDataStorage, validationExceptionStorage, dhis2Endpoint,
-            environment, logger, cancellationToken);
+            authorizationService, environment, logger, httpContext, cancellationToken);
     }
 
     public static async Task<IResult> Post(
         [FromQuery] string? referenceDataFile,
         [FromQuery] string? locale,
-        [FromQuery] string? profile,
-        [FromQuery] string? validationExceptionFile,
         [FromQuery] string[] unitCodes,
         [FromQuery] ushort? sparseDataThreshold,
         [FromQuery] ConfidenceIntervalMode? confidenceIntervals,
         [FromQuery] bool? includeIntroductionTexts,
         [FromQuery] bool? includeMethodsTexts,
         [FromQuery] bool? includeOutlierInterpretation,
-        [FromQuery] PartnerReportElement[] enabledElements,
-        [FromQuery] PartnerReportElement[] disabledElements,
+        [FromQuery] bool? includeBirthWeightFigure,
+        [FromQuery] bool? includeGestationalAgeFigure,
+        [FromQuery] bool? includeIncidenceDensityTable,
+        [FromQuery] bool? includeDeviceAssociatedIncidenceDensityTable,
+        [FromQuery] bool? includeAgentPerInfectionRateTable,
+        [FromQuery] bool? includeInfectiousAgentDetectionRateTable,
+        [FromQuery] bool? includeRiskDensityRateTable,
+        [FromQuery] bool? includeAntibioticUtilisationTable,
+        [FromQuery] bool? includeSurgicalProcedureRateTable,
+        [FromQuery] bool? includeResistantPathogenInfectionRateTable,
+        [FromQuery] bool? includeOrganismResistanceRateTable,
+        [FromQuery] bool? includeAntibioticResistanceTestRateTable,
+        [FromQuery] bool? includeSecondaryBsiRateTable,
         [FromQuery] bool fragmentMode,
         [FromServices] IOptions<ReportingOptions> options,
         [FromServices] ReportLanguageRegistry registry,
         [FromServices] ReferenceDataStorage referenceDataStorage,
         [FromServices] ValidationExceptionStorage validationExceptionStorage,
         [FromServices] Dhis2Endpoint dhis2Endpoint,
+        [FromServices] IAuthorizationService authorizationService,
         [FromServices] IWebHostEnvironment environment,
         [FromServices] ILogger<PartnerReport> logger,
         HttpRequest httpRequest,
+        HttpContext httpContext,
         CancellationToken cancellationToken)
     {
         if (httpRequest.ContentLength is null or 0)
@@ -113,23 +152,29 @@ class PartnerReport
 
         return await Handle(
             apiParameters: BuildApiParameters(
-                referenceDataFile, locale, profile, validationExceptionFile,
+                referenceDataFile, locale,
                 unitCodes, reportingPeriodFrom: null, reportingPeriodTo: null,
                 birthWeightFrom: null, birthWeightTo: null,
                 gestationalAgeFrom: null, gestationalAgeTo: null,
                 includeNonCorePatients: null, includeTestData: null,
                 sparseDataThreshold, confidenceIntervals,
                 includeIntroductionTexts, includeMethodsTexts, includeOutlierInterpretation,
-                enabledElements, disabledElements, httpRequest),
+                includeBirthWeightFigure, includeGestationalAgeFigure,
+                includeIncidenceDensityTable, includeDeviceAssociatedIncidenceDensityTable,
+                includeAgentPerInfectionRateTable, includeInfectiousAgentDetectionRateTable,
+                includeRiskDensityRateTable, includeAntibioticUtilisationTable,
+                includeSurgicalProcedureRateTable, includeResistantPathogenInfectionRateTable,
+                includeOrganismResistanceRateTable, includeAntibioticResistanceTestRateTable,
+                includeSecondaryBsiRateTable,
+                httpRequest),
             partnerDataBody: httpRequest.Body,
             fragmentMode,
             options, registry, referenceDataStorage, validationExceptionStorage, dhis2Endpoint,
-            environment, logger, cancellationToken);
+            authorizationService, environment, logger, httpContext, cancellationToken);
     }
 
     static PartnerReportApiParameters BuildApiParameters(
-        string? referenceDataFile, string? locale, string? profile,
-        string? validationExceptionFile, string[] unitCodes,
+        string? referenceDataFile, string? locale, string[] unitCodes,
         DateOnly? reportingPeriodFrom, DateOnly? reportingPeriodTo,
         ushort? birthWeightFrom, ushort? birthWeightTo,
         ushort? gestationalAgeFrom, ushort? gestationalAgeTo,
@@ -137,7 +182,13 @@ class PartnerReport
         ushort? sparseDataThreshold, ConfidenceIntervalMode? confidenceIntervals,
         bool? includeIntroductionTexts, bool? includeMethodsTexts,
         bool? includeOutlierInterpretation,
-        PartnerReportElement[] enabledElements, PartnerReportElement[] disabledElements,
+        bool? includeBirthWeightFigure, bool? includeGestationalAgeFigure,
+        bool? includeIncidenceDensityTable, bool? includeDeviceAssociatedIncidenceDensityTable,
+        bool? includeAgentPerInfectionRateTable, bool? includeInfectiousAgentDetectionRateTable,
+        bool? includeRiskDensityRateTable, bool? includeAntibioticUtilisationTable,
+        bool? includeSurgicalProcedureRateTable, bool? includeResistantPathogenInfectionRateTable,
+        bool? includeOrganismResistanceRateTable, bool? includeAntibioticResistanceTestRateTable,
+        bool? includeSecondaryBsiRateTable,
         HttpRequest httpRequest)
     {
         var (sessionId, accept, acceptLang) = ReportRequestBase.ReadHeaders(httpRequest);
@@ -148,8 +199,6 @@ class PartnerReport
             AcceptLanguageHeaders = acceptLang,
             Locale = locale,
             ReferenceDataFile = referenceDataFile,
-            Profile = profile,
-            ValidationExceptionFile = validationExceptionFile,
             UnitCodes = unitCodes.Length > 0 ? unitCodes : null,
             ReportingPeriodFrom = reportingPeriodFrom,
             ReportingPeriodTo = reportingPeriodTo,
@@ -164,8 +213,19 @@ class PartnerReport
             IncludeIntroductionTexts = includeIntroductionTexts,
             IncludeMethodsTexts = includeMethodsTexts,
             IncludeOutlierInterpretation = includeOutlierInterpretation,
-            EnabledElements = enabledElements.Length > 0 ? enabledElements : null,
-            DisabledElements = disabledElements.Length > 0 ? disabledElements : null,
+            IncludeBirthWeightFigure = includeBirthWeightFigure,
+            IncludeGestationalAgeFigure = includeGestationalAgeFigure,
+            IncludeIncidenceDensityTable = includeIncidenceDensityTable,
+            IncludeDeviceAssociatedIncidenceDensityTable = includeDeviceAssociatedIncidenceDensityTable,
+            IncludeAgentPerInfectionRateTable = includeAgentPerInfectionRateTable,
+            IncludeInfectiousAgentDetectionRateTable = includeInfectiousAgentDetectionRateTable,
+            IncludeRiskDensityRateTable = includeRiskDensityRateTable,
+            IncludeAntibioticUtilisationTable = includeAntibioticUtilisationTable,
+            IncludeSurgicalProcedureRateTable = includeSurgicalProcedureRateTable,
+            IncludeResistantPathogenInfectionRateTable = includeResistantPathogenInfectionRateTable,
+            IncludeOrganismResistanceRateTable = includeOrganismResistanceRateTable,
+            IncludeAntibioticResistanceTestRateTable = includeAntibioticResistanceTestRateTable,
+            IncludeSecondaryBsiRateTable = includeSecondaryBsiRateTable,
         };
     }
 
@@ -178,8 +238,10 @@ class PartnerReport
         ReferenceDataStorage referenceDataStorage,
         ValidationExceptionStorage validationExceptionStorage,
         Dhis2Endpoint dhis2Endpoint,
+        IAuthorizationService authorizationService,
         IWebHostEnvironment environment,
         ILogger logger,
+        HttpContext httpContext,
         CancellationToken cancellationToken)
     {
         if (apiParameters.AcceptHeaders.IsDefaultOrEmpty
@@ -189,9 +251,7 @@ class PartnerReport
         // API-boundary YAML safety; see ReferenceReport for the rationale.
         var unsafeInput = InputValidation.RejectUnsafeStrings(
             (nameof(apiParameters.ReferenceDataFile), apiParameters.ReferenceDataFile),
-            (nameof(apiParameters.Locale), apiParameters.Locale),
-            (nameof(apiParameters.Profile), apiParameters.Profile),
-            (nameof(apiParameters.ValidationExceptionFile), apiParameters.ValidationExceptionFile))
+            (nameof(apiParameters.Locale), apiParameters.Locale))
             ?? InputValidation.RejectUnsafeStringArray(nameof(apiParameters.UnitCodes), apiParameters.UnitCodes);
         if (unsafeInput is not null) return unsafeInput;
 
@@ -199,6 +259,14 @@ class PartnerReport
             return ProblemDetailsHelper.BadRequest(
                 "Missing unitCodes",
                 "The 'unitCodes' query parameter is required.");
+
+        // Authorization runs after request-shape validation so the shape
+        // checks above stay reachable without a valid DHIS2 session.
+        var auth = await authorizationService.AuthorizeAsync(httpContext.User, "NeoIpcReport");
+        if (!auth.Succeeded)
+            return ProblemDetailsHelper.Forbidden(
+                "Forbidden",
+                "Generating partner reports requires the F_NEOIPC_REPORT authority.");
 
         if (!string.IsNullOrEmpty(apiParameters.ReferenceDataFile))
         {
@@ -210,18 +278,6 @@ class PartnerReport
                 return ProblemDetailsHelper.NotFound(
                     "Reference dataset not found",
                     $"No reference dataset is stored under id '{apiParameters.ReferenceDataFile}'.");
-        }
-
-        if (!string.IsNullOrEmpty(apiParameters.ValidationExceptionFile))
-        {
-            if (!FileStorage.IsValidId(apiParameters.ValidationExceptionFile))
-                return ProblemDetailsHelper.BadRequest(
-                    "Invalid validationExceptionFile",
-                    "The 'validationExceptionFile' must be 32 hex characters.");
-            if (!validationExceptionStorage.Exists(apiParameters.ValidationExceptionFile))
-                return ProblemDetailsHelper.NotFound(
-                    "Validation exception file not found",
-                    $"No validation exception file is stored under id '{apiParameters.ValidationExceptionFile}'.");
         }
 
         var renderParameters = ResolveRenderParameters(
@@ -287,13 +343,10 @@ class PartnerReport
         if (!string.IsNullOrEmpty(apiParameters.ReferenceDataFile))
             rp = rp with { ReferenceDataFile = referenceDataStorage.DataPath(apiParameters.ReferenceDataFile) };
 
-        if (!string.IsNullOrEmpty(apiParameters.ValidationExceptionFile))
-            rp = rp with { ValidationExceptionFile = validationExceptionStorage.DataPath(apiParameters.ValidationExceptionFile) };
-
-        foreach (var element in apiParameters.EnabledElements ?? [])
-            rp = PartnerReportProjection.Apply(rp, element, true);
-        foreach (var element in apiParameters.DisabledElements ?? [])
-            rp = PartnerReportProjection.Apply(rp, element, false);
+        // The validation-exception file is a single admin-managed resource,
+        // auto-applied to every render when present.
+        if (validationExceptionStorage.Exists())
+            rp = rp with { ValidationExceptionFile = validationExceptionStorage.DataPath() };
 
         return rp;
     }

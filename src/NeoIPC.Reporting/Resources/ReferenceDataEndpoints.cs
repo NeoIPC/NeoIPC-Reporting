@@ -6,7 +6,7 @@ namespace NeoIPC.Reporting.Resources;
 /// <summary>
 /// Minimal-API handlers for <c>/reference-data</c> (public listing) and
 /// <c>/admin/reference-data</c> (full CRUD). The handlers themselves
-/// don't enforce authorization — the <c>RequiresAll</c> policy on the
+/// don't enforce authorization — the <c>NeoIpcAdmin</c> policy on the
 /// <c>/admin</c> route group does that.
 /// </summary>
 /// <remarks>

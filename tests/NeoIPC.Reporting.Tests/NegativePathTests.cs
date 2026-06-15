@@ -113,9 +113,9 @@ public class NegativePathTests
     [Test]
     public async Task ReferenceReport_AdHocMode_WithoutAuth_Returns403()
     {
-        // No referenceDataId -> ad-hoc preview mode -> requires the ALL
-        // authority. Without a JSESSIONID cookie the principal is
-        // unauthenticated and AuthorizeAsync rejects.
+        // No referenceDataId -> ad-hoc preview mode -> requires the
+        // F_NEOIPC_ADMIN authority. Without a valid DHIS2 session the
+        // principal is unauthenticated and AuthorizeAsync rejects.
         var response = await _http!.SendAsync(Get(
             "/reference-report?reportingPeriodFrom=2024-01-01"));
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
@@ -153,7 +153,7 @@ public class NegativePathTests
     [Test]
     public async Task AdminEndpoint_WithoutAuth_Returns401Or403()
     {
-        // The /admin/* group has .RequireAuthorization("RequiresAll").
+        // The /admin/* group has .RequireAuthorization("NeoIpcAdmin").
         // Without a JSESSIONID cookie, the auth handler returns NoResult
         // and the policy gate rejects.
         var response = await _http!.SendAsync(Get("/admin/reference-data"));

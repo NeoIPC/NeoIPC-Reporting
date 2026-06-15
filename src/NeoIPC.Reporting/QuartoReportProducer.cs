@@ -199,18 +199,6 @@ abstract partial class QuartoReportProducer : ExternalProcessReportProducer
     /// </summary>
     protected DirectoryInfo WorkingDirectory => _workingDirectory;
 
-    /// <summary>
-    /// Lets a subclass contribute additional Quarto profile names
-    /// (<c>--profile</c>) on top of the locale profile and the
-    /// auto-injected "minimal" profile for HTML. Used by
-    /// <see cref="QuartoPartnerReportProducer"/> to select between
-    /// <c>full</c> and <c>default</c> profile groups.
-    /// </summary>
-    protected virtual IEnumerable<string> GetAdditionalProfiles()
-    {
-        yield break;
-    }
-
     protected sealed override ProcessStartInfo GetProcessStartInfo()
     {
         var startInfo = new ProcessStartInfo("quarto", GetArguments())
@@ -269,7 +257,6 @@ abstract partial class QuartoReportProducer : ExternalProcessReportProducer
 
             var profiles = new List<string> { Locale.Language };
             if (MediaType == "text/html") profiles.Add("minimal");
-            foreach (var p in GetAdditionalProfiles()) profiles.Add(p);
             yield return "--profile";
             yield return string.Join(",", profiles);
 

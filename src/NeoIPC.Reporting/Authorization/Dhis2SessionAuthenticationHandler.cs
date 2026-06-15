@@ -15,8 +15,8 @@ namespace NeoIPC.Reporting.Authorization;
 /// Authorities and group memberships are materialised as custom claim
 /// types defined in <see cref="Dhis2ClaimTypes"/> — see those for the
 /// rationale behind not reusing <c>ClaimTypes.Role</c>. Policies in
-/// <c>Program.cs</c> match on the claim values (e.g. <c>RequiresAll</c>
-/// matches <c>dhis2:authority = "ALL"</c>).
+/// <c>Program.cs</c> match on the claim values (e.g. <c>NeoIpcAdmin</c>
+/// matches <c>dhis2:authority</c> = <c>F_NEOIPC_ADMIN</c> or <c>ALL</c>).
 /// </remarks>
 public sealed class Dhis2SessionAuthenticationHandler
     : AuthenticationHandler<Dhis2SessionAuthenticationOptions>

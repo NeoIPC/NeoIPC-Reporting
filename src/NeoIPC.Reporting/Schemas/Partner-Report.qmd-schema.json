@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "_comment": "Snapshot extracted by scripts/Generate-ReportSchemas.ps1. Do not edit by hand.",
   "sourceQmd": "reports/Partner-Report/Partner-Report.qmd",
-  "sourceCommit": "dd55621",
+  "sourceCommit": "57211c1-dirty",
   "params": [
     {
       "qmdName": "partnerDataFile",

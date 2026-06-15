@@ -10,37 +10,23 @@ namespace NeoIPC.Reporting;
 /// must reference a real param in the QMD.
 /// </summary>
 /// <remarks>
-/// API-only fields (<c>[ApiParameter]</c>) carry concerns the QMD
-/// doesn't see directly: the opaque ID for an admin-uploaded reference
-/// dataset, the locale override, the Quarto profile, the opaque ID for
-/// a validation-exception file, and the element / section-text
-/// projections. The handler resolves opaque IDs to filesystem paths,
-/// applies the projections, and folds the results into
-/// <see cref="ReferenceReportRenderParameters"/> via <c>with</c> before
-/// invoking the generator.
+/// The two <c>[ApiParameter]</c> fields carry concerns the QMD doesn't
+/// see directly: the opaque ID for an admin-uploaded reference dataset
+/// and the locale override (the latter on <see cref="ReportRequestBase"/>).
+/// The handler resolves the opaque ID to a filesystem path and folds it
+/// into <see cref="ReferenceReportRenderParameters"/> via <c>with</c>
+/// before invoking the generator. The handler resolves the single
+/// admin-uploaded validation-exception file (if any). Each content
+/// figure/table is an explicit <c>includeX</c> render flag; the app maps
+/// presets onto them client-side. Section-text inclusion is governed solely
+/// by <see cref="IncludeIntroductionTexts"/> / <see cref="IncludeMethodsTexts"/>.
+/// The Quarto profile is derived server-side from locale + output
+/// format and is not part of the API surface.
 /// </remarks>
 public sealed partial record ReferenceReportApiParameters : ReportRequestBase
 {
     [ApiParameter]
     public string? ReferenceDataId { get; init; }
-
-    [ApiParameter]
-    public string? Profile { get; init; }
-
-    [ApiParameter]
-    public string? ValidationExceptionFile { get; init; }
-
-    [ApiParameter]
-    public ReferenceReportElement[]? EnabledElements { get; init; }
-
-    [ApiParameter]
-    public ReferenceReportElement[]? DisabledElements { get; init; }
-
-    [ApiParameter]
-    public ReferenceReportSectionText[]? EnabledSectionTexts { get; init; }
-
-    [ApiParameter]
-    public ReferenceReportSectionText[]? DisabledSectionTexts { get; init; }
 
     [RenderParameter("reportingPeriodFrom")]
     public DateOnly? ReportingPeriodFrom { get; init; }
@@ -83,4 +69,43 @@ public sealed partial record ReferenceReportApiParameters : ReportRequestBase
 
     [RenderParameter("includeMethodsTexts")]
     public bool? IncludeMethodsTexts { get; init; }
+
+    [RenderParameter("includeBirthWeightFigure")]
+    public bool? IncludeBirthWeightFigure { get; init; }
+
+    [RenderParameter("includeGestationalAgeFigure")]
+    public bool? IncludeGestationalAgeFigure { get; init; }
+
+    [RenderParameter("includeIncidenceDensityTable")]
+    public bool? IncludeIncidenceDensityTable { get; init; }
+
+    [RenderParameter("includeDeviceAssociatedIncidenceDensityTable")]
+    public bool? IncludeDeviceAssociatedIncidenceDensityTable { get; init; }
+
+    [RenderParameter("includeAgentPerInfectionRateTable")]
+    public bool? IncludeAgentPerInfectionRateTable { get; init; }
+
+    [RenderParameter("includeResistantPathogenInfectionRateTable")]
+    public bool? IncludeResistantPathogenInfectionRateTable { get; init; }
+
+    [RenderParameter("includeOrganismResistanceRateTable")]
+    public bool? IncludeOrganismResistanceRateTable { get; init; }
+
+    [RenderParameter("includeInfectiousAgentDetectionRateTable")]
+    public bool? IncludeInfectiousAgentDetectionRateTable { get; init; }
+
+    [RenderParameter("includeAntibioticResistanceTestRateTable")]
+    public bool? IncludeAntibioticResistanceTestRateTable { get; init; }
+
+    [RenderParameter("includeRiskDensityRateTable")]
+    public bool? IncludeRiskDensityRateTable { get; init; }
+
+    [RenderParameter("includeAntibioticUtilisationTable")]
+    public bool? IncludeAntibioticUtilisationTable { get; init; }
+
+    [RenderParameter("includeSurgicalProcedureRateTable")]
+    public bool? IncludeSurgicalProcedureRateTable { get; init; }
+
+    [RenderParameter("includeSecondaryBsiRateTable")]
+    public bool? IncludeSecondaryBsiRateTable { get; init; }
 }

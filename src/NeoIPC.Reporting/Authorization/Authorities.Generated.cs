@@ -141,6 +141,8 @@ public static class Authorities
         public const string MobileSendsms = "F_MOBILE_SENDSMS";
         public const string MobileSettings = "F_MOBILE_SETTINGS";
         public const string NameBasedDataEntry = "F_NAME_BASED_DATA_ENTRY";
+        public const string NeoipcAdmin = "F_NEOIPC_ADMIN";
+        public const string NeoipcReport = "F_NEOIPC_REPORT";
         public const string None = "F_NONE";
         public const string Oauth2ClientManage = "F_OAUTH2_CLIENT_MANAGE";
         public const string OptiongroupDelete = "F_OPTIONGROUP_DELETE";

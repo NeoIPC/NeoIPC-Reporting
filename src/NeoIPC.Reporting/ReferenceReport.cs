@@ -12,26 +12,36 @@ namespace NeoIPC.Reporting;
 /// is present:
 /// <list type="bullet">
 ///   <item><description><b>Stored-data mode</b> (id present) — render
-///   an admin-uploaded dataset. Available to any authenticated user.
-///   Live-fetch filter params (<c>reportingPeriodFrom</c>,
-///   <c>birthWeightFrom</c>, …) are rejected as a 400 if mixed in;
-///   the dataset is fixed and re-applying its filters at render time
-///   would be either redundant or contradictory.</description></item>
+///   an admin-uploaded dataset. Available to any holder of the
+///   <c>F_NEOIPC_REPORT</c> authority (or higher). Live-fetch filter
+///   params (<c>reportingPeriodFrom</c>, <c>birthWeightFrom</c>, …) are
+///   rejected as a 400 if mixed in; the dataset is fixed and re-applying
+///   its filters at render time would be either redundant or
+///   contradictory.</description></item>
 ///   <item><description><b>Ad-hoc preview mode</b> (id absent) —
 ///   live-fetch render against DHIS2 with the supplied filter params.
-///   Admin-only (DHIS2 <c>ALL</c> authority); the handler enforces the
-///   gate via <see cref="IAuthorizationService"/> rather than via a
+///   Requires the <c>F_NEOIPC_ADMIN</c> authority; the handler enforces
+///   the gate via <see cref="IAuthorizationService"/> rather than via a
 ///   route-level policy because the gating is conditional on the
 ///   query.</description></item>
 /// </list>
 /// </summary>
+/// <remarks>
+/// Both gates run in-handler, after request-shape validation, so the
+/// negative-path checks (malformed/mixed/missing) stay reachable for the
+/// integration tests' placeholder sessions. The single admin-uploaded
+/// validation-exception file (if any) is folded in automatically. Each
+/// content figure/table is an explicit <c>includeX</c> render flag; the
+/// app maps presets onto them client-side. Section-text inclusion is
+/// governed solely by <c>includeIntroductionTexts</c> /
+/// <c>includeMethodsTexts</c>. The Quarto profile is derived server-side
+/// from locale + output format and is not part of the API surface.
+/// </remarks>
 class ReferenceReport
 {
     public static async Task<IResult> Get(
         [FromQuery] string? referenceDataId,
         [FromQuery] string? locale,
-        [FromQuery] string? profile,
-        [FromQuery] string? validationExceptionFile,
         [FromQuery] DateOnly? reportingPeriodFrom,
         [FromQuery] DateOnly? reportingPeriodTo,
         [FromQuery] ushort? birthWeightFrom,
@@ -46,10 +56,19 @@ class ReferenceReport
         [FromQuery] ConfidenceIntervalMode? confidenceIntervals,
         [FromQuery] bool? includeIntroductionTexts,
         [FromQuery] bool? includeMethodsTexts,
-        [FromQuery] ReferenceReportElement[] enabledElements,
-        [FromQuery] ReferenceReportElement[] disabledElements,
-        [FromQuery] ReferenceReportSectionText[] enabledSectionTexts,
-        [FromQuery] ReferenceReportSectionText[] disabledSectionTexts,
+        [FromQuery] bool? includeBirthWeightFigure,
+        [FromQuery] bool? includeGestationalAgeFigure,
+        [FromQuery] bool? includeIncidenceDensityTable,
+        [FromQuery] bool? includeDeviceAssociatedIncidenceDensityTable,
+        [FromQuery] bool? includeAgentPerInfectionRateTable,
+        [FromQuery] bool? includeInfectiousAgentDetectionRateTable,
+        [FromQuery] bool? includeRiskDensityRateTable,
+        [FromQuery] bool? includeAntibioticUtilisationTable,
+        [FromQuery] bool? includeSurgicalProcedureRateTable,
+        [FromQuery] bool? includeResistantPathogenInfectionRateTable,
+        [FromQuery] bool? includeOrganismResistanceRateTable,
+        [FromQuery] bool? includeAntibioticResistanceTestRateTable,
+        [FromQuery] bool? includeSecondaryBsiRateTable,
         [FromQuery] bool fragmentMode,
         [FromServices] IOptions<ReportingOptions> options,
         [FromServices] ReportLanguageRegistry registry,
@@ -73,9 +92,7 @@ class ReferenceReport
         // InputValidation for the rule.
         var unsafeInput = InputValidation.RejectUnsafeStrings(
             (nameof(referenceDataId), referenceDataId),
-            (nameof(locale), locale),
-            (nameof(profile), profile),
-            (nameof(validationExceptionFile), validationExceptionFile))
+            (nameof(locale), locale))
             ?? InputValidation.RejectUnsafeStringArray(nameof(countryFilter), countryFilter)
             ?? InputValidation.RejectUnsafeStringArray(nameof(hospitalFilter), hospitalFilter);
         if (unsafeInput is not null) return unsafeInput;
@@ -103,26 +120,22 @@ class ReferenceReport
                 return ProblemDetailsHelper.NotFound(
                     "Reference dataset not found",
                     $"No reference dataset is stored under id '{referenceDataId}'.");
-        }
-        else
-        {
-            var auth = await authorizationService.AuthorizeAsync(httpContext.User, "RequiresAll");
+
+            // Stored-data (view) mode is available to report viewers.
+            var auth = await authorizationService.AuthorizeAsync(httpContext.User, "NeoIpcReport");
             if (!auth.Succeeded)
                 return ProblemDetailsHelper.Forbidden(
                     "Forbidden",
-                    "Ad-hoc preview rendering against live DHIS2 requires the ALL authority.");
+                    "Viewing reference reports requires the F_NEOIPC_REPORT authority.");
         }
-
-        if (!string.IsNullOrEmpty(validationExceptionFile))
+        else
         {
-            if (!FileStorage.IsValidId(validationExceptionFile))
-                return ProblemDetailsHelper.BadRequest(
-                    "Invalid validationExceptionFile",
-                    "The 'validationExceptionFile' must be 32 hex characters.");
-            if (!validationExceptionStorage.Exists(validationExceptionFile))
-                return ProblemDetailsHelper.NotFound(
-                    "Validation exception file not found",
-                    $"No validation exception file is stored under id '{validationExceptionFile}'.");
+            // Ad-hoc preview renders live against DHIS2 — admin only.
+            var auth = await authorizationService.AuthorizeAsync(httpContext.User, "NeoIpcAdmin");
+            if (!auth.Succeeded)
+                return ProblemDetailsHelper.Forbidden(
+                    "Forbidden",
+                    "Ad-hoc preview rendering against live DHIS2 requires the F_NEOIPC_ADMIN authority.");
         }
 
         var apiParameters = new ReferenceReportApiParameters
@@ -132,8 +145,6 @@ class ReferenceReport
             AcceptLanguageHeaders = acceptLang,
             Locale = locale,
             ReferenceDataId = referenceDataId,
-            Profile = profile,
-            ValidationExceptionFile = validationExceptionFile,
             ReportingPeriodFrom = reportingPeriodFrom,
             ReportingPeriodTo = reportingPeriodTo,
             BirthWeightFrom = birthWeightFrom,
@@ -148,10 +159,19 @@ class ReferenceReport
             ConfidenceIntervals = confidenceIntervals,
             IncludeIntroductionTexts = includeIntroductionTexts,
             IncludeMethodsTexts = includeMethodsTexts,
-            EnabledElements = enabledElements.Length > 0 ? enabledElements : null,
-            DisabledElements = disabledElements.Length > 0 ? disabledElements : null,
-            EnabledSectionTexts = enabledSectionTexts.Length > 0 ? enabledSectionTexts : null,
-            DisabledSectionTexts = disabledSectionTexts.Length > 0 ? disabledSectionTexts : null,
+            IncludeBirthWeightFigure = includeBirthWeightFigure,
+            IncludeGestationalAgeFigure = includeGestationalAgeFigure,
+            IncludeIncidenceDensityTable = includeIncidenceDensityTable,
+            IncludeDeviceAssociatedIncidenceDensityTable = includeDeviceAssociatedIncidenceDensityTable,
+            IncludeAgentPerInfectionRateTable = includeAgentPerInfectionRateTable,
+            IncludeInfectiousAgentDetectionRateTable = includeInfectiousAgentDetectionRateTable,
+            IncludeRiskDensityRateTable = includeRiskDensityRateTable,
+            IncludeAntibioticUtilisationTable = includeAntibioticUtilisationTable,
+            IncludeSurgicalProcedureRateTable = includeSurgicalProcedureRateTable,
+            IncludeResistantPathogenInfectionRateTable = includeResistantPathogenInfectionRateTable,
+            IncludeOrganismResistanceRateTable = includeOrganismResistanceRateTable,
+            IncludeAntibioticResistanceTestRateTable = includeAntibioticResistanceTestRateTable,
+            IncludeSecondaryBsiRateTable = includeSecondaryBsiRateTable,
         };
 
         var renderParameters = ResolveRenderParameters(
@@ -214,17 +234,10 @@ class ReferenceReport
         if (!string.IsNullOrEmpty(apiParameters.ReferenceDataId))
             rp = rp with { ReferenceDataFile = referenceDataStorage.DataPath(apiParameters.ReferenceDataId) };
 
-        if (!string.IsNullOrEmpty(apiParameters.ValidationExceptionFile))
-            rp = rp with { ValidationExceptionFile = validationExceptionStorage.DataPath(apiParameters.ValidationExceptionFile) };
-
-        foreach (var element in apiParameters.EnabledElements ?? [])
-            rp = ReferenceReportProjection.Apply(rp, element, true);
-        foreach (var element in apiParameters.DisabledElements ?? [])
-            rp = ReferenceReportProjection.Apply(rp, element, false);
-        foreach (var section in apiParameters.EnabledSectionTexts ?? [])
-            rp = ReferenceReportProjection.Apply(rp, section, true);
-        foreach (var section in apiParameters.DisabledSectionTexts ?? [])
-            rp = ReferenceReportProjection.Apply(rp, section, false);
+        // The validation-exception file is a single admin-managed resource,
+        // auto-applied to every render when present.
+        if (validationExceptionStorage.Exists())
+            rp = rp with { ValidationExceptionFile = validationExceptionStorage.DataPath() };
 
         return rp;
     }

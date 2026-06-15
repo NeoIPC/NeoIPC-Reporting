@@ -15,7 +15,6 @@ sealed class QuartoPartnerReportProducer : QuartoReportProducer
 {
     public const string ReportName = "Partner-Report";
 
-    readonly PartnerReportApiParameters _apiParameters;
     readonly PartnerReportRenderParameters _renderParameters;
     string? _partnerDataPath;
 
@@ -31,7 +30,6 @@ sealed class QuartoPartnerReportProducer : QuartoReportProducer
         : base(ReportName, mediaType, locale, apiParameters.SessionId,
             options, registry, environment, logger)
     {
-        _apiParameters = apiParameters;
         _renderParameters = renderParameters;
     }
 
@@ -47,12 +45,6 @@ sealed class QuartoPartnerReportProducer : QuartoReportProducer
     public void SetPartnerDataPath(string path) => _partnerDataPath = path;
 
     protected override string? ReportFileDownloadName => "Partner-Report";
-
-    protected override IEnumerable<string> GetAdditionalProfiles()
-    {
-        var profile = string.IsNullOrEmpty(_apiParameters.Profile) ? "default" : _apiParameters.Profile;
-        yield return profile;
-    }
 
     protected override IEnumerable<string> GetReportParameters()
     {
