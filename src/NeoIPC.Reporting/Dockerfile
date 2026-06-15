@@ -295,8 +295,8 @@ RUN tar xf /tmp/TinyTeX.tar.xz -C $HOME && \
 # Stage: Quarto (only the linux-amd64 binaries we need).
 # ----------------------------------------------------------------------------
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS quarto-downloader
-ADD --checksum=sha256:bdf689b5589789a1f21d89c3b83d78ed02a97914dd702e617294f2cc1ea7387d \
-    https://github.com/quarto-dev/quarto-cli/releases/download/v1.8.27/quarto-1.8.27-linux-amd64.tar.gz \
+ADD --checksum=sha256:ea8c897368791ad9f200010c087ea3111b2e556b12a960487dd4e216902aa102 \
+    https://github.com/quarto-dev/quarto-cli/releases/download/v1.9.38/quarto-1.9.38-linux-amd64.tar.gz \
     /tmp/quarto.tar.gz
 ADD --checksum=sha256:066e20cdb882994160e18524a552b97e03648eb9aa0c7cdf5680a6493be65ab2 \
     https://registry.npmjs.org/@esbuild/linux-x64/-/linux-x64-0.27.3.tgz \
