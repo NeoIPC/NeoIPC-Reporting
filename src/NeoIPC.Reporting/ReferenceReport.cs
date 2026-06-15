@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using NeoIPC.Reporting.Authorization;
 using NeoIPC.Reporting.Resources;
 
 namespace NeoIPC.Reporting;
@@ -122,20 +123,18 @@ class ReferenceReport
                     $"No reference dataset is stored under id '{referenceDataId}'.");
 
             // Stored-data (view) mode is available to report viewers.
-            var auth = await authorizationService.AuthorizeAsync(httpContext.User, "NeoIpcReport");
-            if (!auth.Succeeded)
-                return ProblemDetailsHelper.Forbidden(
-                    "Forbidden",
-                    "Viewing reference reports requires the F_NEOIPC_REPORT authority.");
+            var forbidden = await NeoIpcAuthorization.RequireAsync(
+                authorizationService, httpContext.User, "NeoIpcReport",
+                "Viewing reference reports requires the F_NEOIPC_REPORT authority.");
+            if (forbidden is not null) return forbidden;
         }
         else
         {
             // Ad-hoc preview renders live against DHIS2 — admin only.
-            var auth = await authorizationService.AuthorizeAsync(httpContext.User, "NeoIpcAdmin");
-            if (!auth.Succeeded)
-                return ProblemDetailsHelper.Forbidden(
-                    "Forbidden",
-                    "Ad-hoc preview rendering against live DHIS2 requires the F_NEOIPC_ADMIN authority.");
+            var forbidden = await NeoIpcAuthorization.RequireAsync(
+                authorizationService, httpContext.User, "NeoIpcAdmin",
+                "Ad-hoc preview rendering against live DHIS2 requires the F_NEOIPC_ADMIN authority.");
+            if (forbidden is not null) return forbidden;
         }
 
         var apiParameters = new ReferenceReportApiParameters

@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using NeoIPC.Reporting.Authorization;
 using NeoIPC.Reporting.Resources;
 
 namespace NeoIPC.Reporting;
@@ -262,11 +263,10 @@ class PartnerReport
 
         // Authorization runs after request-shape validation so the shape
         // checks above stay reachable without a valid DHIS2 session.
-        var auth = await authorizationService.AuthorizeAsync(httpContext.User, "NeoIpcReport");
-        if (!auth.Succeeded)
-            return ProblemDetailsHelper.Forbidden(
-                "Forbidden",
-                "Generating partner reports requires the F_NEOIPC_REPORT authority.");
+        var forbidden = await NeoIpcAuthorization.RequireAsync(
+            authorizationService, httpContext.User, "NeoIpcReport",
+            "Generating partner reports requires the F_NEOIPC_REPORT authority.");
+        if (forbidden is not null) return forbidden;
 
         if (!string.IsNullOrEmpty(apiParameters.ReferenceDataFile))
         {

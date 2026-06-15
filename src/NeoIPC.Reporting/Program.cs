@@ -134,76 +134,10 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseRequestTimeouts();
 
-app.MapGet("reference-report", ReferenceReport.Get)
-    .WithName("GetReferenceReport")
-    .WithRequestTimeout(TimeSpan.FromSeconds(360));
-app.MapGet("reference-report/parameters", () =>
-        Results.Ok(new { fields = ReferenceReportApiParameters.Schema }))
-    .WithName("GetReferenceReportParameters");
-app.MapGet("partner-report", PartnerReport.Get)
-    .WithName("GetPartnerReport")
-    .WithRequestTimeout(TimeSpan.FromSeconds(600));
-app.MapPost("partner-report", PartnerReport.Post)
-    .WithName("PostPartnerReport")
-    .DisableAntiforgery()
-    .WithRequestTimeout(TimeSpan.FromSeconds(600));
-app.MapGet("partner-report/parameters", () =>
-        Results.Ok(new { fields = PartnerReportApiParameters.Schema }))
-    .WithName("GetPartnerReportParameters");
-
-// Report-layer configuration the app reads to drive its forms: content
-// presets (runtime-read from the toolkit's presets.json) and supported
-// locales (the report-language registry). Both gated at the report tier.
-app.MapGet("reference-report/presets",
-        (IOptions<ReportingOptions> o) =>
-            ReportConfigEndpoints.Presets(QuartoReferenceReportProducer.ReportName, o))
-    .WithName("GetReferenceReportPresets")
-    .RequireAuthorization("NeoIpcReport");
-app.MapGet("reference-report/locales",
-        (ReportLanguageRegistry r) =>
-            ReportConfigEndpoints.Locales(QuartoReferenceReportProducer.ReportName, r))
-    .WithName("GetReferenceReportLocales")
-    .RequireAuthorization("NeoIpcReport");
-app.MapGet("partner-report/presets",
-        (IOptions<ReportingOptions> o) =>
-            ReportConfigEndpoints.Presets(QuartoPartnerReportProducer.ReportName, o))
-    .WithName("GetPartnerReportPresets")
-    .RequireAuthorization("NeoIpcReport");
-app.MapGet("partner-report/locales",
-        (ReportLanguageRegistry r) =>
-            ReportConfigEndpoints.Locales(QuartoPartnerReportProducer.ReportName, r))
-    .WithName("GetPartnerReportLocales")
-    .RequireAuthorization("NeoIpcReport");
-
-// Report-tier listing — partners pick a referenceDataId from this
-// listing to feed into /reference-report (stored-data mode).
-app.MapGet("reference-data", ReferenceDataEndpoints.List)
-    .WithName("ListReferenceData")
-    .RequireAuthorization("NeoIpcReport");
-
-// Everything under /admin/* requires the NeoIPC admin authority.
-var admin = app.MapGroup("admin").RequireAuthorization("NeoIpcAdmin");
-
-admin.MapGet("reference-data", ReferenceDataEndpoints.AdminList)
-    .WithName("AdminListReferenceData");
-admin.MapGet("reference-data/{id}", ReferenceDataEndpoints.AdminDownload)
-    .WithName("AdminDownloadReferenceData");
-admin.MapPost("reference-data", ReferenceDataEndpoints.AdminUpload)
-    .WithName("AdminUploadReferenceData")
-    .DisableAntiforgery()
-    .WithRequestTimeout(TimeSpan.FromSeconds(120));
-admin.MapDelete("reference-data/{id}", ReferenceDataEndpoints.AdminDelete)
-    .WithName("AdminDeleteReferenceData");
-
-// The validation-exception file is a singleton (one file, auto-applied),
-// so its admin API has no id segment: GET current metadata, PUT to
-// upload-replace, DELETE to remove.
-admin.MapGet("validation-exceptions", ValidationExceptionEndpoints.AdminGet)
-    .WithName("AdminGetValidationException");
-admin.MapPut("validation-exceptions", ValidationExceptionEndpoints.AdminUpload)
-    .WithName("AdminUploadValidationException")
-    .DisableAntiforgery();
-admin.MapDelete("validation-exceptions", ValidationExceptionEndpoints.AdminDelete)
-    .WithName("AdminDeleteValidationException");
+// Endpoint mapping lives in ApiEndpoints so the endpoint set is
+// unit-testable: EndpointAuthorizationTests asserts every endpoint is
+// route-authorized, marked InHandlerAuthorized, or marked PublicEndpoint
+// (no endpoint silently public).
+ApiEndpoints.Map(app);
 
 app.Run();
