@@ -221,6 +221,10 @@ RUN printf 'Package: r-base-core\nPin: version %s-*\nPin-Priority: 1001\n' "${RB
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     rm -f /etc/apt/apt.conf.d/docker-clean && \
+    # r2u is a single university-hosted mirror that intermittently drops a .deb mid-download from CI runners
+    # ("OpenSSL ... unexpected eof while reading"). Retry fetches and disable HTTP pipelining so a dropped
+    # connection re-fetches the one file instead of failing the whole apt batch.
+    printf 'Acquire::Retries "5";\nAcquire::http::Pipeline-Depth "0";\n' > /etc/apt/apt.conf.d/80-retries && \
     apt-get -qq update && \
     apt-get -qq install --no-install-recommends \
         software-properties-common \
