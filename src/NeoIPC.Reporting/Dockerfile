@@ -68,17 +68,16 @@ FROM toolkit-source-${REPORTS_SOURCE} AS toolkit-source
 # Invoke-Localization.ps1 is the toolkit's authoritative entry point: validates
 # string layers, updates po4a YAML keys, runs po4a per config, regenerates the
 # glossary. Running the wrapper directly keeps us aligned with whatever the
-# pipeline shape is upstream (no reimplementation drift). Base is the official
-# PowerShell-on-Debian image so we don't pay the cost of installing pwsh on
-# top of aspnet:10.0; this stage is build-only and discarded.
+# pipeline shape is upstream (no reimplementation drift). The wrapper imports the NeoIPC-Tools module, which
+# requires PowerShell >= 7.6, so the base is the .NET SDK image — the source Microsoft now points to for
+# PowerShell in Docker (the standalone powershell image is deprecated and caps at 7.5). sdk:10.0-resolute
+# ships pwsh 7.6. Build-only stage, discarded.
 
-FROM mcr.microsoft.com/powershell:7.4-debian-12 AS reports-builder
+FROM mcr.microsoft.com/dotnet/sdk:10.0-resolute AS reports-builder
 ARG DEBIAN_FRONTEND=noninteractive
 
-# The base image exports LANG/LC_ALL=en_US.UTF-8, which this build-only stage never
-# generates, so Perl/po4a warn and fall back to the "C" locale. C.UTF-8 is built
-# into glibc (no locale-gen needed) and is UTF-8-aware, giving the pipeline a valid
-# locale without the warning.
+# Force a valid UTF-8 locale for Perl / po4a (which otherwise warn and fall back to the "C" locale when the
+# base image's locale isn't generated). C.UTF-8 is built into glibc (no locale-gen needed) and is UTF-8-aware.
 ENV LC_ALL=C.UTF-8 LANG=C.UTF-8
 
 # Dependencies the pipeline invokes: Perl + the modules po4a actually loads
@@ -158,7 +157,7 @@ RUN set -eu; \
 # binary debs, so apt-get install r-cran-* completes in seconds with no
 # compilation.
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS r-runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-resolute AS r-runtime
 ARG DEBIAN_FRONTEND=noninteractive
 
 # CRAN apt key — needed for r-base-core (newer than Ubuntu's r-base-core).
@@ -178,6 +177,16 @@ Package: *
 Pin: release o=CRAN-Apt Project
 Pin: release l=CRAN-Apt Packages
 Pin-Priority: 700
+EOF
+
+# Transient stopgap: hold r-base-core at 4.6.0. CRAN's r-base-core 4.6.1 currently declares
+# `Breaks: r-cran-rlang (< 1.2.0-5~)`, but r2u still serves rlang 1.2.0-1 — a CRAN-vs-r2u lag during the
+# R 4.6.1 release that makes the whole r-cran-* set unresolvable. 4.6.0 lacks that Breaks, so the install
+# resolves; drop this pin once r2u serves r-cran-rlang >= 1.2.0-5.
+COPY <<"EOF" /etc/apt/preferences.d/98-rbasecore-stopgap
+Package: r-base-core
+Pin: version 4.6.0-*
+Pin-Priority: 1001
 EOF
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
@@ -273,18 +282,29 @@ RUN find /usr/local/lib/R/site-library -type d \
 # ----------------------------------------------------------------------------
 # Stage: TinyTeX + the babel set the toolkit's reports use.
 # ----------------------------------------------------------------------------
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS tinytex-builder
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-resolute AS tinytex-builder
 ARG DEBIAN_FRONTEND=noninteractive
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     rm -f /etc/apt/apt.conf.d/docker-clean && \
     apt-get -qq update && \
-    apt-get -qq install --no-install-recommends perl wget fontconfig xz-utils
+    apt-get -qq install --no-install-recommends perl wget fontconfig xz-utils gnupg
+# TinyTeX v2026.05 (published 2026-05-01) ships TeX Live 2026's tlmgr (texlive-scripts r78861). The install
+# below pins tlmgr to the frozen tlnet snapshot whose tlmgr revision MATCHES this bundle's — the 2026-05-02
+# archive (the 05-01 archive carries r78852, one revision too old, which tlmgr rejects as "older than local").
+# When bumping this bundle, find the matching snapshot date the same way: tlmgr reports "older than local
+# installation" if the pin is too old and "tlmgr itself needs to be updated" if it is too new.
 ADD --chmod=644 --checksum=sha256:ef6c552b2959744f449213fb124e58954a235e7d41ad191e48080869728ae451 \
     https://github.com/rstudio/tinytex-releases/releases/download/v2026.05/TinyTeX-1-linux-x86_64-v2026.05.tar.xz \
     /tmp/TinyTeX.tar.xz
 USER $APP_UID
+# Pin tlmgr to the frozen tlnet snapshot dated to this bundle instead of the rolling tlnet.yihui.org mirror.
+# The rolling mirror advances its tlmgr revision past the bundle's, so `tlmgr install` self-terminates
+# demanding `tlmgr update --self`; the dated archive snapshot matches the bundle's tlmgr, so install just
+# works — and being immutable it makes the installed package set reproducible build-to-build. gnupg (added
+# above) lets tlmgr verify the snapshot's signature rather than warning "gpg unavailable".
 RUN tar xf /tmp/TinyTeX.tar.xz -C $HOME && \
+    ~/.TinyTeX/bin/x86_64-linux/tlmgr option repository https://texlive.info/tlnet-archive/2026/05/02/tlnet && \
     ~/.TinyTeX/bin/x86_64-linux/tlmgr install \
         babel babel-english babel-estonian babel-german babel-greek \
         babel-italian babel-spanish babel-turkish \
@@ -294,7 +314,7 @@ RUN tar xf /tmp/TinyTeX.tar.xz -C $HOME && \
 # ----------------------------------------------------------------------------
 # Stage: Quarto (only the linux-amd64 binaries we need).
 # ----------------------------------------------------------------------------
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS quarto-downloader
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-resolute AS quarto-downloader
 ADD --checksum=sha256:ea8c897368791ad9f200010c087ea3111b2e556b12a960487dd4e216902aa102 \
     https://github.com/quarto-dev/quarto-cli/releases/download/v1.9.38/quarto-1.9.38-linux-amd64.tar.gz \
     /tmp/quarto.tar.gz
@@ -410,7 +430,7 @@ FROM base-neoipcr-${NEOIPCR_SOURCE} AS final-base
 # Surveillance-Toolkit access is needed at compile time. The reports-builder
 # stage is still consumed by the final image for runtime rendering.
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0-resolute AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["src/NeoIPC.Reporting/NeoIPC.Reporting.csproj", "src/NeoIPC.Reporting/"]
