@@ -8,7 +8,9 @@
 #       docker buildx imagetools inspect <image>:<tag> --format '{{.Manifest.Digest}}'
 #     A digest pin freezes the base image, so .NET / OS-layer security patches
 #     arrive only on a deliberate digest bump — the `base` stage's `apt upgrade`
-#     still pulls noble security updates for the apt-managed libraries.
+#     still pulls resolute security updates for the apt-managed libraries.
+#   * Version ARGs hold the bare number (no leading `v`); the `v` is prepended at
+#     the URL where the upstream tag carries one (TinyTeX, Quarto).
 #   * The TinyTeX / Quarto / esbuild `ADD --checksum` values are version-coupled
 #     and stay inline at their ADD lines — bump the checksum together with the
 #     matching version ARG here.
@@ -18,7 +20,7 @@
 ARG DOTNET_ASPNET_IMAGE=mcr.microsoft.com/dotnet/aspnet:10.0-resolute@sha256:0aa8645b7e7c83630bdb5ca096a91e2e4a356e9236ec1c01bb471a7410bb18a9
 ARG DOTNET_SDK_IMAGE=mcr.microsoft.com/dotnet/sdk:10.0-resolute@sha256:196f61c6262aa890f41dd654ff52d3b995187124a37778fb990ed0c31c26da44
 ARG ALPINE_GIT_IMAGE=alpine/git:v2.52.0@sha256:4a0e72d49596a1f5d3701aeedafdadc5c0da4062be4657c7bdc4017387f591cc
-ARG TINYTEX_VERSION=v2026.05
+ARG TINYTEX_VERSION=2026.05
 ARG TINYTEX_TLNET_SNAPSHOT=2026/05/02
 ARG QUARTO_VERSION=1.9.38
 ARG ESBUILD_VERSION=0.27.3
@@ -210,14 +212,6 @@ Pin: release l=CRAN-Apt Packages
 Pin-Priority: 700
 EOF
 
-# Transient stopgap: hold r-base-core at the RBASECORE_VERSION anchor. CRAN's r-base-core 4.6.1 currently
-# declares `Breaks: r-cran-rlang (< 1.2.0-5~)`, but r2u still serves rlang 1.2.0-1 — a CRAN-vs-r2u lag during
-# the R 4.6.1 release that makes the whole r-cran-* set unresolvable. 4.6.0 lacks that Breaks, so the install
-# resolves; drop this pin once r2u serves r-cran-rlang >= 1.2.0-5. A COPY heredoc does not interpolate ARGs,
-# so the pin is written with printf to consume the central RBASECORE_VERSION.
-RUN printf 'Package: r-base-core\nPin: version %s-*\nPin-Priority: 1001\n' "${RBASECORE_VERSION}" \
-    > /etc/apt/preferences.d/98-rbasecore-stopgap
-
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     rm -f /etc/apt/apt.conf.d/docker-clean && \
@@ -225,6 +219,14 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     # ("OpenSSL ... unexpected eof while reading"). Retry fetches and disable HTTP pipelining so a dropped
     # connection re-fetches the one file instead of failing the whole apt batch.
     printf 'Acquire::Retries "5";\nAcquire::http::Pipeline-Depth "0";\n' > /etc/apt/apt.conf.d/80-retries && \
+    # Transient stopgap: boost r-base-core to the RBASECORE_VERSION anchor. CRAN's r-base-core 4.6.1 declares
+    # `Breaks: r-cran-rlang (< 1.2.0-5~)` while r2u still serves rlang 1.2.0-1 — a CRAN-vs-r2u release lag that
+    # makes the whole r-cran-* set unresolvable; 4.6.0 lacks that Breaks, so the install resolves. This is a
+    # version-glob pin (priority 1001 only boosts a *present* 4.6.0): once r2u advances past it the glob matches
+    # nothing and apt falls back to the current r-base-core — the build never breaks, it just holds R at 4.6.0
+    # until removed. Drop this pin once r2u serves r-cran-rlang >= 1.2.0-5. (printf, not a COPY heredoc, so it
+    # can consume the RBASECORE_VERSION ARG.)
+    printf 'Package: r-base-core\nPin: version %s-*\nPin-Priority: 1001\n' "${RBASECORE_VERSION}" > /etc/apt/preferences.d/98-rbasecore-stopgap && \
     apt-get -qq update && \
     apt-get -qq install --no-install-recommends \
         software-properties-common \
@@ -330,7 +332,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # When bumping this bundle, find the matching snapshot date the same way: tlmgr reports "older than local
 # installation" if the pin is too old and "tlmgr itself needs to be updated" if it is too new.
 ADD --chmod=644 --checksum=sha256:ef6c552b2959744f449213fb124e58954a235e7d41ad191e48080869728ae451 \
-    https://github.com/rstudio/tinytex-releases/releases/download/${TINYTEX_VERSION}/TinyTeX-1-linux-x86_64-${TINYTEX_VERSION}.tar.xz \
+    https://github.com/rstudio/tinytex-releases/releases/download/v${TINYTEX_VERSION}/TinyTeX-1-linux-x86_64-v${TINYTEX_VERSION}.tar.xz \
     /tmp/TinyTeX.tar.xz
 USER $APP_UID
 # Pin tlmgr to the frozen tlnet snapshot dated to this bundle instead of the rolling tlnet.yihui.org mirror.
@@ -377,10 +379,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     rm -f /etc/apt/apt.conf.d/docker-clean && \
     apt-get -qq update && \
-    # Pull Ubuntu (noble) security updates into the runtime image for packages
+    # Pull Ubuntu (resolute) security updates into the runtime image for packages
     # inherited from r-runtime / the aspnet base — gnutls28, libgcrypt20,
     # xz-utils, expat, cairo, python3, etc. — so it ships the latest
-    # noble-patched versions rather than the base image's snapshot.
+    # resolute-patched versions rather than the base image's snapshot.
     apt-get -qq upgrade -y && \
     apt-get -qq install --no-install-recommends \
         fonts-ebgaramond \
