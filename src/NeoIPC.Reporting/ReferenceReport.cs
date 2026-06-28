@@ -83,7 +83,7 @@ class ReferenceReport
         [FromServices] Dhis2Endpoint dhis2Endpoint,
         [FromServices] IAuthorizationService authorizationService,
         [FromServices] IWebHostEnvironment environment,
-        [FromServices] ILogger<ReferenceReport> logger,
+        [FromServices] ILoggerFactory loggerFactory,
         HttpRequest httpRequest,
         HttpContext httpContext,
         CancellationToken cancellationToken)
@@ -185,7 +185,7 @@ class ReferenceReport
 
         var (generator, problem) = SelectProducer(
             apiParameters, renderParameters, quartoLanguages,
-            options, registry, environment, logger);
+            options, registry, environment, loggerFactory);
         if (problem is not null) return problem;
         if (generator is null) return Results.StatusCode(415);
 
@@ -253,7 +253,7 @@ class ReferenceReport
         IOptions<ReportingOptions> options,
         ReportLanguageRegistry registry,
         IWebHostEnvironment environment,
-        ILogger logger)
+        ILoggerFactory loggerFactory)
     {
         var quartoSupported = quartoLanguages.Keys.ToHashSet(StringComparer.Ordinal);
         var rScriptSupported = RScriptReferenceReportProducer.SupportedLanguageDictionary.Keys
@@ -267,7 +267,7 @@ class ReferenceReport
             if (QuartoReportProducer.SupportedMediaTypeHeaderValues.ContainsKey(mediaType))
             {
                 var (gen, problem) = TryQuarto(mediaType, apiParameters, renderParameters,
-                    quartoSupported, options, registry, environment, logger);
+                    quartoSupported, options, registry, environment, loggerFactory);
                 if (problem is not null) return (null, problem);
                 if (gen is not null) return (gen, null);
             }
@@ -275,7 +275,7 @@ class ReferenceReport
             if (RScriptReportProducer.SupportedMediaTypeHeaderValues.ContainsKey(mediaType))
             {
                 var (gen, problem) = TryRScript(mediaType, apiParameters, renderParameters,
-                    rScriptSupported, options, environment, logger);
+                    rScriptSupported, options, environment, loggerFactory);
                 if (problem is not null) return (null, problem);
                 if (gen is not null) return (gen, null);
             }
@@ -289,7 +289,7 @@ class ReferenceReport
                 quartoValue.IsSubsetOf(acceptHeader))
             {
                 var (gen, problem) = TryQuarto(mediaType, apiParameters, renderParameters,
-                    quartoSupported, options, registry, environment, logger);
+                    quartoSupported, options, registry, environment, loggerFactory);
                 if (problem is not null) return (null, problem);
                 if (gen is not null) return (gen, null);
             }
@@ -299,7 +299,7 @@ class ReferenceReport
                 rScriptValue.IsSubsetOf(acceptHeader))
             {
                 var (gen, problem) = TryRScript(mediaType, apiParameters, renderParameters,
-                    rScriptSupported, options, environment, logger);
+                    rScriptSupported, options, environment, loggerFactory);
                 if (problem is not null) return (null, problem);
                 if (gen is not null) return (gen, null);
             }
@@ -316,7 +316,7 @@ class ReferenceReport
         IOptions<ReportingOptions> options,
         ReportLanguageRegistry registry,
         IWebHostEnvironment environment,
-        ILogger logger)
+        ILoggerFactory loggerFactory)
     {
         var resolution = LocaleResolver.Resolve(apiParameters.Locale,
             apiParameters.AcceptLanguageHeaders, supportedLanguages);
@@ -328,7 +328,7 @@ class ReferenceReport
                     $"The 'locale' parameter '{apiParameters.Locale}' is not supported by this report.")),
             { Status: LocaleResolver.Status.Resolved, Locale: { } loc } =>
                 (new QuartoReferenceReportProducer(mediaType, loc, apiParameters, renderParameters,
-                    options, registry, environment, logger), null),
+                    options, registry, environment, loggerFactory), null),
             _ => (null, null),
         };
     }
@@ -340,7 +340,7 @@ class ReferenceReport
         IReadOnlyCollection<string> supportedLanguages,
         IOptions<ReportingOptions> options,
         IWebHostEnvironment environment,
-        ILogger logger)
+        ILoggerFactory loggerFactory)
     {
         var resolution = LocaleResolver.Resolve(apiParameters.Locale,
             apiParameters.AcceptLanguageHeaders, supportedLanguages);
@@ -352,7 +352,7 @@ class ReferenceReport
                     $"The 'locale' parameter '{apiParameters.Locale}' is not supported by this report.")),
             { Status: LocaleResolver.Status.Resolved, Locale: { } loc } =>
                 (new RScriptReferenceReportProducer(mediaType, loc, apiParameters, renderParameters,
-                    options, environment, logger), null),
+                    options, environment, loggerFactory), null),
             _ => (null, null),
         };
     }

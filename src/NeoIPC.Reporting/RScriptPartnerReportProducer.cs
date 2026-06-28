@@ -26,8 +26,9 @@ sealed class RScriptPartnerReportProducer : RScriptReportProducer
         PartnerReportRenderParameters renderParameters,
         IOptions<ReportingOptions> options,
         IWebHostEnvironment environment,
-        ILogger logger)
-        : base(mediaType, locale, apiParameters.SessionId, options, environment, logger)
+        ILoggerFactory loggerFactory)
+        : base(mediaType, QuartoPartnerReportProducer.ReportName, locale, apiParameters.SessionId,
+            options, environment, loggerFactory)
     {
         _renderParameters = renderParameters;
         _scriptPath = Path.Combine(
@@ -42,7 +43,6 @@ sealed class RScriptPartnerReportProducer : RScriptReportProducer
     }
 
     protected override string? ReportFileDownloadName => "Partner-Report-Data";
-    public override ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     public static FrozenDictionary<string, string> SupportedLanguageDictionary { get; } =
         new Dictionary<string, string>

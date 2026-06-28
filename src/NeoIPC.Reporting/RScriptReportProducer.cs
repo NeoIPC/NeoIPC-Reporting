@@ -23,15 +23,27 @@ abstract class RScriptReportProducer : ExternalProcessReportProducer
 
     protected RScriptReportProducer(
         string mediaType,
+        string reportName,
         ResolvedLocale locale,
         string sessionId,
         IOptions<ReportingOptions> options,
         IWebHostEnvironment environment,
-        ILogger logger) : base(mediaType, environment, logger)
+        ILoggerFactory loggerFactory) : base(mediaType, reportName, environment, loggerFactory)
     {
         Locale = locale;
         SessionId = sessionId;
         _options = options.Value;
+        // No per-render workdir on the Rscript path; the R logger writes its
+        // structured records to a transient file the drain reads and then
+        // DisposeAsync deletes.
+        RLogFilePath = Path.Combine(Path.GetTempPath(), $"neoipc-rlog-{Guid.NewGuid():N}.json");
+    }
+
+    public override ValueTask DisposeAsync()
+    {
+        if (RLogFilePath is not null && File.Exists(RLogFilePath))
+            File.Delete(RLogFilePath);
+        return ValueTask.CompletedTask;
     }
 
     public string SessionId { get; }
@@ -41,6 +53,13 @@ abstract class RScriptReportProducer : ExternalProcessReportProducer
 
     protected sealed override ProcessStartInfo GetProcessStartInfo()
     {
+        // The Rscript path produces JSON on stdout (the response body), so its
+        // diagnostics must not touch stdout: NEOIPC_LOG_FILE routes the R
+        // logger to a transient file we drain, and NEOIPC_LOG_LEVEL sets the
+        // verbosity from the minimum effective level across the render's
+        // per-source category sub-tree (env-only — the Generate scripts fall
+        // back to it when no CLI flag is given).
+        var effectiveLevel = ReportLogging.EffectiveMinLevel(LoggerFactory, RenderCategory, DrainCategorySuffixes);
         var startInfo = new ProcessStartInfo("Rscript", GetArguments())
         {
             UseShellExecute = false,
@@ -51,6 +70,8 @@ abstract class RScriptReportProducer : ExternalProcessReportProducer
             EnvironmentVariables =
             {
                 ["NEOIPC_DHIS2_SESSION_ID"] = SessionId,
+                ["NEOIPC_LOG_LEVEL"] = ReportLogging.ToNeoIpcLogLevel(effectiveLevel),
+                ["NEOIPC_LOG_FILE"] = RLogFilePath,
                 ["LANGUAGE"] = Locale.Language,
                 ["LANG"] = Locale.LcAll,
                 ["LC_ALL"] = Locale.LcAll,

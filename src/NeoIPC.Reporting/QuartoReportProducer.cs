@@ -3,9 +3,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
 using System.Collections.Frozen;
 using System.Diagnostics;
-using System.Text;
 using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
 
 namespace NeoIPC.Reporting;
 
@@ -60,12 +58,18 @@ namespace NeoIPC.Reporting;
 /// recursively deleted; the read-only source tree is never touched.
 /// </para>
 /// </remarks>
-abstract partial class QuartoReportProducer : ExternalProcessReportProducer
+abstract class QuartoReportProducer : ExternalProcessReportProducer
 {
     readonly DirectoryInfo _renderRoot;
     readonly DirectoryInfo _workingDirectory;
     readonly string _quartoLogFilePath;
     readonly ReportingOptions _options;
+
+    // Set by the drain (see DrainDiagnostics / ReportLogDrain): the raw Quarto
+    // records for the failure-path ProblemDetails payload, and whether the
+    // well-known #13394 rename error (a false failure) was seen.
+    JsonArray _quartoJsonData = new();
+    bool _quartoIssue13394Success;
 
     public string SessionId { get; }
     public ResolvedLocale Locale { get; }
@@ -78,8 +82,8 @@ abstract partial class QuartoReportProducer : ExternalProcessReportProducer
         IOptions<ReportingOptions> options,
         ReportLanguageRegistry registry,
         IWebHostEnvironment environment,
-        ILogger logger)
-        : base(mediaType, environment, logger)
+        ILoggerFactory loggerFactory)
+        : base(mediaType, reportName, environment, loggerFactory)
     {
         Locale = locale;
         SessionId = sessionId;
@@ -194,6 +198,11 @@ abstract partial class QuartoReportProducer : ExternalProcessReportProducer
         _renderRoot = renderRoot;
         _workingDirectory = reportDir;
         _quartoLogFilePath = Path.Join(reportDir.FullName, "quarto-log.json");
+        // The report's R code (run inside Quarto via knitr) writes its
+        // structured logger records here; drained alongside the Quarto log.
+        RLogFilePath = Path.Join(reportDir.FullName, "r-log.json");
+        // The unique workdir name doubles as this render's correlation id.
+        RenderId = renderRoot.Name;
     }
 
     // Quarto's per-project scratch/cache directory. Never a source input
@@ -232,6 +241,12 @@ abstract partial class QuartoReportProducer : ExternalProcessReportProducer
 
     protected sealed override ProcessStartInfo GetProcessStartInfo()
     {
+        // One verbosity dial for the whole render, derived from the minimum
+        // effective level across the render's per-source category sub-tree:
+        // NEOIPC_LOG_LEVEL governs the R side (incl. the DHIS2 query trace),
+        // NEOIPC_LOG_FILE is where the R logger writes its structured records,
+        // and Quarto's --log-level (below) is derived too.
+        var effectiveLevel = ReportLogging.EffectiveMinLevel(LoggerFactory, RenderCategory, DrainCategorySuffixes);
         var startInfo = new ProcessStartInfo("quarto", GetArguments())
         {
             UseShellExecute = false,
@@ -243,6 +258,8 @@ abstract partial class QuartoReportProducer : ExternalProcessReportProducer
             EnvironmentVariables =
             {
                 ["NEOIPC_DHIS2_SESSION_ID"] = SessionId,
+                ["NEOIPC_LOG_LEVEL"] = ReportLogging.ToNeoIpcLogLevel(effectiveLevel),
+                ["NEOIPC_LOG_FILE"] = RLogFilePath,
                 ["LANGUAGE"] = Locale.Language,
                 ["LANG"] = Locale.LcAll,
                 ["LC_ALL"] = Locale.LcAll,
@@ -265,7 +282,10 @@ abstract partial class QuartoReportProducer : ExternalProcessReportProducer
             yield return _quartoLogFilePath;
 
             yield return "--log-level";
-            yield return Environment.IsDevelopment() ? "debug" : "warning";
+            // Floored at info: Quarto re-logs every Pandoc line as an INFO
+            // record, so a coarser level would drop Pandoc warnings/errors
+            // before they reach the log file (see ReportLogging / the drain).
+            yield return ReportLogging.ToQuartoLogLevel(effectiveLevel);
 
             yield return "--log-format";
             yield return "json-stream";
@@ -302,10 +322,24 @@ abstract partial class QuartoReportProducer : ExternalProcessReportProducer
         }
     }
 
-    protected sealed override async ValueTask<DataResult> HandleError(int processId, int exitCode,
+    // A Quarto render also drains the Quarto json-stream into the .Quarto /
+    // .Pandoc channels, so they join the sub-tree the child write-floor derives
+    // from (the base set covers only the root + R channels).
+    protected override IReadOnlyList<string> DrainCategorySuffixes { get; } =
+        ["", ".R.report", ".R.common", ".R.neoipcr", ".Quarto", ".Pandoc"];
+
+    protected override async ValueTask DrainDiagnostics(int exitCode, CancellationToken cancellationToken)
+    {
+        await base.DrainDiagnostics(exitCode, cancellationToken); // R layout_json
+        var result = await ReportLogDrain.DrainQuartoLogAsync(
+            _quartoLogFilePath, LoggerFactory, RenderCategory, exitCode, cancellationToken);
+        _quartoJsonData = result.RawRecords;
+        _quartoIssue13394Success = result.Issue13394Success;
+    }
+
+    protected sealed override ValueTask<DataResult> HandleError(int processId, int exitCode,
         Stream stdOutBuffer, string stdErrString, CancellationToken cancellationToken)
     {
-        var success = false;
         if (!string.IsNullOrWhiteSpace(stdErrString))
             Logger.LogDebug("{StdErr}", stdErrString);
 
@@ -316,90 +350,20 @@ abstract partial class QuartoReportProducer : ExternalProcessReportProducer
             // Production. Surface the exit code + stderr so this failure mode is diagnosable.
             Logger.LogError("Quarto render process {QuartoRenderProcessId} exited {ExitCode} without writing a log file. Stderr: {StdErr}",
                 processId, exitCode, stdErrString);
-            return new DataResult(detail: "The Quarto log file does not exist.", statusCode: 500,
-                showMessage: Environment.IsDevelopment());
+            return ValueTask.FromResult(new DataResult(detail: "The Quarto log file does not exist.", statusCode: 500,
+                showMessage: Environment.IsDevelopment()));
         }
 
-        var minLevel = LogLevel.None;
-        for (var i = LogLevel.Trace; i < LogLevel.Critical; i++)
-            if (Logger.IsEnabled(i))
-            {
-                minLevel = i;
-                break;
-            }
-
-        var previousLogLevel = LogLevel.None;
-        var sb = new StringBuilder();
-        var jsonData = new JsonArray();
-        await foreach (var line in File.ReadLinesAsync(_quartoLogFilePath, cancellationToken))
-        {
-            if (string.IsNullOrWhiteSpace(line)) continue;
-            var jsonLine = JsonNode.Parse(line);
-            jsonData.Add(jsonLine);
-
-            if (jsonLine is not JsonObject jsonObject ||
-                !jsonObject.TryGetPropertyValue("levelName", out var levelNode) ||
-                !jsonObject.TryGetPropertyValue("msg", out var messageNode))
-                continue;
-
-            var message = messageNode?.ToString();
-            if (string.IsNullOrWhiteSpace(message))
-                continue;
-
-            var currentLogLevel = levelNode?.ToString() switch
-            {
-                "INFO" => LogLevel.Information,
-                "WARNING" => LogLevel.Warning,
-                "ERROR" => LogLevel.Error,
-                "CRITICAL" => LogLevel.Critical,
-                _ => LogLevel.Debug,
-            };
-
-            if (exitCode == 1 &&
-                currentLogLevel == LogLevel.Error &&
-                QuartoIssue13394DetectionRegex().IsMatch(message))
-            {
-                if (sb.Length > 0)
-                    Logger.Log(previousLogLevel,
-                        "Quarto render process {QuartoRenderProcessId}: {Message}",
-                        processId, sb.ToString());
-
-                Logger.LogTrace(
-                    "Quarto render process {QuartoRenderProcessId}: Hit well-known Quarto bug (https://github.com/quarto-dev/quarto-cli/issues/13394)\n{ Message}",
-                    processId, message);
-                sb.Length = 0;
-                success = true;
-                continue;
-            }
-
-            if (currentLogLevel < minLevel)
-                continue;
-
-            if (previousLogLevel != currentLogLevel)
-            {
-                Logger.Log(previousLogLevel,
-                    "Quarto render process {QuartoRenderProcessId}: {Message}",
-                    processId, sb.ToString());
-                previousLogLevel = currentLogLevel;
-                sb.Length = 0;
-            }
-
-            sb.AppendLine(message);
-        }
-
-        if (sb.Length > 0)
-            Logger.Log(previousLogLevel,
-                "Quarto render process {QuartoRenderProcessId}: {Message}",
-                processId, sb.ToString());
-
-        return success
+        // The Quarto log was already drained into ILogger by DrainDiagnostics,
+        // which also captured the raw records and flagged the #13394 case.
+        return ValueTask.FromResult(_quartoIssue13394Success
             ? DataResult.SimpleSuccess
             : new DataResult(
                 title: "Quarto Error",
                 detail: "An error occurred while executing Quarto to create a report",
                 statusCode: 500,
-                extensions: new Dictionary<string, object?> { { "quartoLog", jsonData } },
-                showMessage: Environment.IsDevelopment());
+                extensions: new Dictionary<string, object?> { { "quartoLog", _quartoJsonData } },
+                showMessage: Environment.IsDevelopment()));
     }
 
     public override ValueTask DisposeAsync()
@@ -408,9 +372,6 @@ abstract partial class QuartoReportProducer : ExternalProcessReportProducer
             _renderRoot.Delete(recursive: true);
         return ValueTask.CompletedTask;
     }
-
-    [GeneratedRegex(@"NotFound: No such file or directory \(os error 2\): rename '.+?(/|\\)-' -> '.+?(/|\\)_output(/|\\)-'")]
-    private static partial Regex QuartoIssue13394DetectionRegex();
 
     public static bool IsMediaTypeSupported(string mediaType)
         => SupportedMediaTypeHeaderValues.ContainsKey(mediaType) ||

@@ -262,6 +262,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         r-cran-httr2 \
         r-cran-ids \
         r-cran-jsonlite \
+        r-cran-logger \
         r-cran-lubridate \
         r-cran-uuid \
         r-cran-tidyselect

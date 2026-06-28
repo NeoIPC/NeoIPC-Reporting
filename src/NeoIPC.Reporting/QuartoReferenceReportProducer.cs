@@ -23,9 +23,9 @@ sealed class QuartoReferenceReportProducer : QuartoReportProducer
         IOptions<ReportingOptions> options,
         ReportLanguageRegistry registry,
         IWebHostEnvironment environment,
-        ILogger logger)
+        ILoggerFactory loggerFactory)
         : base(ReportName, mediaType, locale, apiParameters.SessionId,
-            options, registry, environment, logger)
+            options, registry, environment, loggerFactory)
     {
         _renderParameters = renderParameters;
     }
