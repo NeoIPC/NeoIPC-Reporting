@@ -76,8 +76,10 @@ class PartnerReport
         [FromQuery] bool? includeAntibioticResistanceTestRateTable,
         [FromQuery] bool? includeSecondaryBsiRateTable,
         // Nullable so it stays optional: a non-nullable bool is a *required* minimal-API query
-        // parameter (an absent value fails model binding with a 400). Defaults to true below — HTML
-        // is always inlined for the app; pass fragmentMode=false for a standalone HTML document.
+        // parameter (an absent value fails model binding with a 400). The app always sends
+        // fragmentMode explicitly, so this default only affects consumers that omit it (curl /
+        // ad-hoc): default false gives them a self-contained, browser-viewable standalone HTML
+        // document; pass fragmentMode=true for the app-style body-only fragment.
         [FromQuery] bool? fragmentMode,
         [FromServices] IOptions<ReportingOptions> options,
         [FromServices] ReportLanguageRegistry registry,
@@ -108,7 +110,7 @@ class PartnerReport
                 includeSecondaryBsiRateTable,
                 httpRequest),
             partnerDataBody: null,
-            fragmentMode ?? true,
+            fragmentMode ?? false,
             options, registry, referenceDataStorage, validationExceptionStorage, dhis2Endpoint,
             authorizationService, environment, logger, httpContext, cancellationToken);
     }
@@ -136,8 +138,10 @@ class PartnerReport
         [FromQuery] bool? includeAntibioticResistanceTestRateTable,
         [FromQuery] bool? includeSecondaryBsiRateTable,
         // Nullable so it stays optional: a non-nullable bool is a *required* minimal-API query
-        // parameter (an absent value fails model binding with a 400). Defaults to true below — HTML
-        // is always inlined for the app; pass fragmentMode=false for a standalone HTML document.
+        // parameter (an absent value fails model binding with a 400). The app always sends
+        // fragmentMode explicitly, so this default only affects consumers that omit it (curl /
+        // ad-hoc): default false gives them a self-contained, browser-viewable standalone HTML
+        // document; pass fragmentMode=true for the app-style body-only fragment.
         [FromQuery] bool? fragmentMode,
         [FromServices] IOptions<ReportingOptions> options,
         [FromServices] ReportLanguageRegistry registry,
@@ -175,7 +179,7 @@ class PartnerReport
                 includeSecondaryBsiRateTable,
                 httpRequest),
             partnerDataBody: httpRequest.Body,
-            fragmentMode ?? true,
+            fragmentMode ?? false,
             options, registry, referenceDataStorage, validationExceptionStorage, dhis2Endpoint,
             authorizationService, environment, logger, httpContext, cancellationToken);
     }

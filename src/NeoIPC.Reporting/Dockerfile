@@ -439,10 +439,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 #       <Report>/                    (one dir per report)
 COPY --from=reports-builder /toolkit-output /toolkit
 
-# Bring neoipcr (and any extra packages r-builder added on top of r-runtime,
-# e.g. devtools in workspace mode) into the final image. Most of the
-# site-library is already populated from r-runtime; this COPY overlays the
-# variant-specific additions.
+# Bring whatever r-builder added on top of r-runtime into the final image: in the
+# github-branch / github-tag modes that is neoipcr (pak-installed into the builder's
+# site-library); in workspace mode r-builder adds nothing — neoipcr is the editable
+# /neoipcr copy and devtools is installed in base-neoipcr-workspace below. Most of the
+# site-library is already populated from r-runtime; this COPY overlays those additions.
 COPY --from=r-builder /usr/local/lib/R/site-library /usr/local/lib/R/site-library
 COPY --from=quarto-downloader /opt/quarto /opt/quarto
 RUN ln -s /opt/quarto/bin/quarto /usr/local/bin/quarto && \

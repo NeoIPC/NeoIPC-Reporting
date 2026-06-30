@@ -10,10 +10,11 @@ namespace NeoIPC.Reporting.Resources;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Applied to HTML output by default: the <c>fragmentMode</c> query parameter on the
-/// HTML-emitting report endpoints defaults to <c>true</c>, so every HTML render is inlined for
-/// the app. Pass <c>?fragmentMode=false</c> for the full standalone Quarto-minimal document
-/// instead (e.g. curl downloads, ad-hoc scripts). PDF and JSON are unaffected.
+/// Applied to HTML output when requested via the <c>fragmentMode</c> query parameter on the
+/// HTML-emitting report endpoints. The app sends <c>?fragmentMode=true</c> explicitly to inline
+/// the render into its container; the parameter defaults to <c>false</c>, so a consumer that omits
+/// it (curl downloads, ad-hoc scripts) gets the full standalone Quarto-minimal document. PDF and
+/// JSON are unaffected.
 /// </para>
 ///
 /// <para>
