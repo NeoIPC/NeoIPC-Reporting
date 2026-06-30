@@ -163,6 +163,13 @@ static partial class ReportLogDrain
     }
 
     /// <summary>The string value of a JSON object property, or <c>null</c> when absent.</summary>
+    /// <remarks>
+    /// <c>ToString()</c> is relied on intentionally: the R <c>logger::layout_json()</c>
+    /// fields the drain reads (<c>time</c>/<c>level</c>/<c>ns</c>/<c>msg</c>) are always
+    /// emitted as JSON strings, so this returns their text directly. A non-string node
+    /// would merely stringify to its JSON text and then fall through the level/namespace
+    /// switches to a safe default, so no type-guarding is needed.
+    /// </remarks>
     static string? ValueOf(JsonObject record, string key)
         => record.TryGetPropertyValue(key, out var node) ? node?.ToString() : null;
 
