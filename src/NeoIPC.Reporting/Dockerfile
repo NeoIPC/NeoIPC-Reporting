@@ -55,8 +55,8 @@ ARG REPORTS_TAG=
 #   workspace       - COPY from the named build context "neoipcr" to /neoipcr
 #                     and install devtools (matches editable workspace mode).
 ARG NEOIPCR_SOURCE=github-branch
-ARG NEOIPCR_REPO=Brar/neoipcr
-ARG NEOIPCR_BRANCH=TowardsReferenceReport
+ARG NEOIPCR_REPO=NeoIPC/neoipcr
+ARG NEOIPCR_BRANCH=main
 ARG NEOIPCR_TAG=
 
 # ----------------------------------------------------------------------------
