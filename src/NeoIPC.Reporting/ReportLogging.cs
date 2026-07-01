@@ -59,9 +59,8 @@ static class ReportLogging
 
     /// <summary>
     /// The <c>NEOIPC_LOG_LEVEL</c> verbosity word the report pipeline reads
-    /// (the same dial the PowerShell wrappers drive from
-    /// <c>-Quiet</c>/<c>-Verbose</c>/<c>-Debug</c>). Governs the R
-    /// <c>logger</c> namespaces — including neoipcr's DHIS2 query trace,
+    /// (<c>quiet</c>/<c>normal</c>/<c>verbose</c>/<c>debug</c>). Governs the
+    /// R <c>logger</c> namespaces — including neoipcr's DHIS2 query trace,
     /// which only appears at <c>verbose</c>/<c>debug</c>.
     /// </summary>
     public static string ToNeoIpcLogLevel(LogLevel level) => level switch

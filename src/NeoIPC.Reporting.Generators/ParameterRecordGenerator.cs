@@ -56,7 +56,7 @@ public sealed class ParameterRecordGenerator : IIncrementalGenerator
     static readonly DiagnosticDescriptor NoMatchingSchema = new(
         id: "NRP001",
         title: "No matching schema snapshot for ApiParameters",
-        messageFormat: "No schema-derived RenderParameters record '{1}' found for '{0}'; ensure the corresponding .qmd-schema.json is in <AdditionalFiles> (re-run scripts/Generate-ReportSchemas.ps1 if the snapshot is missing)",
+        messageFormat: "No schema-derived RenderParameters record '{1}' found for '{0}'; ensure the corresponding .qmd-schema.json is in <AdditionalFiles> (regenerate the report-schema snapshots if one is missing)",
         category: "NeoIPC.Reporting.Generators",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);

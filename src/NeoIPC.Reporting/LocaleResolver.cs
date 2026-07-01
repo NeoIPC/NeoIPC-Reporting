@@ -33,11 +33,11 @@ public sealed record ResolvedLocale(string Language, string Territory)
 public static class LocaleResolver
 {
     /// <summary>
-    /// Default territory per language for territory-less inputs
-    /// (mirrors <c>Split-NeoipcLocale</c> in the toolkit's
-    /// <c>New-ReferenceReport.ps1</c>). Without this, a request for
-    /// <c>locale=de</c> would compose <c>LC_ALL=de_DE.UTF-8</c> only
-    /// if the caller spelled out <c>de_DE</c>.
+    /// Default territory per language for territory-less inputs, so a
+    /// request for <c>locale=de</c> composes <c>LC_ALL=de_DE.UTF-8</c>
+    /// without the caller having to spell out <c>de_DE</c>. Mirrors how
+    /// the report rendering pipeline resolves a bare language to a full
+    /// locale.
     /// </summary>
     private static readonly Dictionary<string, string> DefaultTerritories =
         new(StringComparer.OrdinalIgnoreCase)

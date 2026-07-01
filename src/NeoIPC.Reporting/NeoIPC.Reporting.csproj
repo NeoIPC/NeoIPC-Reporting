@@ -27,9 +27,8 @@
   <!-- Committed JSON snapshots of the upstream Surveillance-Toolkit report
        params: blocks. The source generator (NeoIPC.Reporting.Generators)
        reads these via Roslyn's AdditionalTexts API and emits the
-       *RenderParameters records. Regenerate with
-       scripts/Generate-ReportSchemas.ps1 (in the workspace) after the
-       upstream params change. -->
+       *RenderParameters records. Regenerate the snapshots from the
+       upstream report sources after the upstream params change. -->
   <ItemGroup>
     <AdditionalFiles Include="Schemas\Partner-Report.qmd-schema.json" />
     <AdditionalFiles Include="Schemas\Reference-Report.qmd-schema.json" />
@@ -41,9 +40,9 @@
        [RenderParameter] property. Surface the real cause up-front. -->
   <Target Name="EnsureReportSchemas" BeforeTargets="CoreCompile">
     <Error Condition="!Exists('$(MSBuildThisFileDirectory)Schemas\Partner-Report.qmd-schema.json')"
-           Text="Missing Schemas\Partner-Report.qmd-schema.json. From the workspace root, run: pwsh scripts\Generate-ReportSchemas.ps1" />
+           Text="Missing Schemas\Partner-Report.qmd-schema.json. Regenerate the committed report-schema snapshots from the upstream report sources." />
     <Error Condition="!Exists('$(MSBuildThisFileDirectory)Schemas\Reference-Report.qmd-schema.json')"
-           Text="Missing Schemas\Reference-Report.qmd-schema.json. From the workspace root, run: pwsh scripts\Generate-ReportSchemas.ps1" />
+           Text="Missing Schemas\Reference-Report.qmd-schema.json. Regenerate the committed report-schema snapshots from the upstream report sources." />
   </Target>
 
   <ItemGroup>

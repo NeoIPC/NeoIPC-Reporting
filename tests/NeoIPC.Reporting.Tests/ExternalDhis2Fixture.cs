@@ -6,9 +6,8 @@ namespace NeoIPC.Reporting.Tests;
 /// <summary>
 /// Shared helper for the end-to-end integration tests that run against a
 /// <b>live, already-running</b> NeoIPC stack (DHIS2 + neoipc-reporting),
-/// brought up and seeded out-of-band — see
-/// <c>scripts/Initialize-TestDhis2.ps1</c> in the workspace and
-/// <c>tasks/integration-test-environment.md</c>. Unlike
+/// brought up and seeded out-of-band with NeoIPC metadata and synthetic
+/// data. Unlike
 /// <see cref="NegativePathTests"/> / <see cref="ParametersEndpointTests"/>
 /// (which spin up the built image in isolation via Testcontainers and use
 /// a placeholder session), these tests exercise the real
@@ -39,8 +38,7 @@ namespace NeoIPC.Reporting.Tests;
 /// <c>JSESSIONID</c>. The reporting service authenticates the caller by
 /// re-validating their <c>JSESSIONID</c> against DHIS2, so the tests must
 /// establish a real session via the same form-login endpoint the browser
-/// UI uses (<c>/dhis-web-commons-security/login.action</c>). This mirrors
-/// the flow in the workspace's <c>Verify-NeoIpcApp.ps1</c>.
+/// UI uses (<c>/dhis-web-commons-security/login.action</c>).
 /// </para>
 /// </remarks>
 public static class ExternalDhis2Fixture

@@ -7,9 +7,9 @@ namespace NeoIPC.Reporting.Tests;
 /// <summary>
 /// End-to-end integration tests against a live, seeded NeoIPC stack
 /// (DHIS2 + neoipc-reporting). See <see cref="ExternalDhis2Fixture"/> for
-/// the environment contract and <c>tasks/integration-test-environment.md</c>
-/// for how to bring the stack up and seed it
-/// (<c>scripts/Initialize-TestDhis2.ps1</c>).
+/// the environment contract. These tests require the stack to be brought
+/// up and the DHIS2 instance seeded with NeoIPC metadata and synthetic
+/// data out-of-band.
 /// </summary>
 /// <remarks>
 /// The whole fixture self-skips (<see cref="Assert.Ignore(string)"/>) when
@@ -31,8 +31,8 @@ public class RenderingIntegrationTests
         if (!await ExternalDhis2Fixture.IsReportingUpAsync())
             Assert.Ignore(
                 $"Reporting service not reachable at {ExternalDhis2Fixture.ReportingBaseUrl}. " +
-                "Bring the stack up (scripts/Verify-NeoIpcApp.ps1) and seed it " +
-                "(scripts/Initialize-TestDhis2.ps1) before running Category=Integration.");
+                "Bring the stack up and seed the DHIS2 instance with NeoIPC metadata + " +
+                "synthetic data before running Category=Integration.");
 
         var session = await ExternalDhis2Fixture.LoginAsync();
         if (session is null)
@@ -86,7 +86,7 @@ public class RenderingIntegrationTests
         if (string.IsNullOrEmpty(department))
             Assert.Ignore(
                 "NEOIPC_TEST_DEPARTMENT_CODE is not set — the instance has not been seeded. " +
-                "Run scripts/Initialize-TestDhis2.ps1 to import metadata + synthetic data.");
+                "Seed the DHIS2 instance with NeoIPC metadata + synthetic data first.");
 
         using var client = ExternalDhis2Fixture.CreateReportingClient(_session);
         client.Timeout = TimeSpan.FromMinutes(10); // live import + R/Quarto render
