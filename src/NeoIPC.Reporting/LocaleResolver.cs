@@ -149,7 +149,12 @@ public static class LocaleResolver
     private static ResolvedLocale? Negotiate(string tag, IReadOnlyCollection<string> supportedLanguages)
     {
         var (language, requestedTerritory) = SplitTag(tag);
-        if (!supportedLanguages.Contains(language))
+        // Case-insensitive membership: `language` is already lower-cased by
+        // SplitTag, but supportedLanguages carries the registry keys verbatim
+        // (from the qmd filenames), which are not guaranteed lower-case and may
+        // be an Ordinal set — so match with the same case-insensitivity as
+        // DefaultTerritories rather than depending on every key being lower-case.
+        if (!supportedLanguages.Contains(language, StringComparer.OrdinalIgnoreCase))
             return null;
         if (!DefaultTerritories.ContainsKey(language))
             return null; // served language without a generated locale — refuse, never crash

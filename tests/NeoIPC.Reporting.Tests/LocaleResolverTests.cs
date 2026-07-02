@@ -169,6 +169,26 @@ public class LocaleResolverTests
     }
 
     [Test]
+    public void Resolve_SupportedLanguageDifferentCase_StillMatches()
+    {
+        // supportedLanguages carries the registry keys verbatim (from the qmd
+        // filenames), so a key whose case differs from the normalized
+        // (lower-cased) request tag must still match — the membership check is
+        // OrdinalIgnoreCase, matching DefaultTerritories.
+        var mixedCase = new[] { "EN", "DE" };
+        var result = LocaleResolver.Resolve(
+            explicitLocale: "de",
+            acceptLanguageHeaders: Accept("en"),
+            supportedLanguages: mixedCase);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Status, Is.EqualTo(LocaleResolver.Status.Resolved));
+            Assert.That(result.Locale!.Language, Is.EqualTo("de"));
+        });
+    }
+
+    [Test]
     public void Resolve_ExplicitBareLanguage_ResolvesToServedLocale()
     {
         var result = LocaleResolver.Resolve(
