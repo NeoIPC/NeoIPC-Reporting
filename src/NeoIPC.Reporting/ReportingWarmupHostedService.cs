@@ -70,7 +70,9 @@ public sealed class ReportingWarmupHostedService : IHostedService
     {
         var reportName = reportDir.Name;
         var baseQmd = $"{reportName}.qmd";
-        var languages = new Dictionary<string, string>(StringComparer.Ordinal);
+        // Case-insensitive to match ReportLanguageRegistry and LocaleResolver
+        // (resolved language subtags are lower-cased; qmd-derived keys may not be).
+        var languages = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         if (File.Exists(Path.Join(reportDir.FullName, baseQmd)))
         {

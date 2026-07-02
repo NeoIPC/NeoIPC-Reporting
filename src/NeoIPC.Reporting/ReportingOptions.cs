@@ -83,7 +83,10 @@ public sealed class ReportingOptions
     /// can be inspected locally. Double-gated (this flag AND
     /// <c>IWebHostEnvironment.IsDevelopment()</c>) on purpose: a kept workdir
     /// holds the rendered report — i.e. surveillance data — so it must never be
-    /// retained on a production instance. Default <c>false</c>.
+    /// retained on a production instance. Default <c>false</c>. Kept workdirs
+    /// are not auto-reaped: a Development session with repeated render failures
+    /// accumulates them under <see cref="ReportsTempDir"/> until cleared by hand
+    /// (each retained path is logged when it is kept).
     /// </summary>
     public bool KeepFailedRenderWorkdir { get; set; }
 }

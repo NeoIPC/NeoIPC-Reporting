@@ -25,7 +25,13 @@ public sealed class ReportLanguageRegistry
     /// <summary>Registers the language→file map for one report. Called from the warmup service.</summary>
     internal void Set(string reportName, IDictionary<string, string> languageToFile)
     {
-        _byReport[reportName] = languageToFile.ToFrozenDictionary(StringComparer.Ordinal);
+        // Case-insensitive so the file lookup agrees with LocaleResolver, which
+        // matches supported languages OrdinalIgnoreCase: the registry keys come
+        // verbatim from qmd filenames (not guaranteed lower-case) while the
+        // resolved locale's language subtag always is. An Ordinal map here would
+        // let the resolver return Resolved for a mixed-case key that the QMD
+        // lookup in QuartoReportProducer then misses, crashing the render.
+        _byReport[reportName] = languageToFile.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>

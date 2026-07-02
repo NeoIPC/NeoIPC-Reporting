@@ -189,6 +189,34 @@ public class LocaleResolverTests
     }
 
     [Test]
+    public void Resolve_ServedLanguageWithoutGeneratedLocale_Refuses()
+    {
+        // A language the report has content for but the container generates no
+        // OS locale for (absent from DefaultTerritories, e.g. fr/af/ne) must be
+        // refused rather than resolved to an ungenerated fr_FR.UTF-8 that would
+        // crash lualatex — a distinct branch from territory-mismatch and from
+        // plain not-supported.
+        var supported = new[] { "en", "de", "fr" };
+
+        var explicitResult = LocaleResolver.Resolve(
+            explicitLocale: "fr",
+            acceptLanguageHeaders: Accept("en"),
+            supportedLanguages: supported);
+        var acceptResult = LocaleResolver.Resolve(
+            explicitLocale: null,
+            acceptLanguageHeaders: Accept("fr"),
+            supportedLanguages: supported);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(explicitResult.Status, Is.EqualTo(LocaleResolver.Status.ExplicitUnsupported));
+            Assert.That(explicitResult.Locale, Is.Null);
+            Assert.That(acceptResult.Status, Is.EqualTo(LocaleResolver.Status.NoMatch));
+            Assert.That(acceptResult.Locale, Is.Null);
+        });
+    }
+
+    [Test]
     public void Resolve_ExplicitBareLanguage_ResolvesToServedLocale()
     {
         var result = LocaleResolver.Resolve(
