@@ -369,7 +369,20 @@ abstract class QuartoReportProducer : ExternalProcessReportProducer
     public override ValueTask DisposeAsync()
     {
         if (_renderRoot.Exists)
-            _renderRoot.Delete(recursive: true);
+        {
+            // Double-gated dev aid: keep a failed render's workdir (its .tex,
+            // the Quarto/Pandoc/lualatex logs, and generated figures) for local
+            // inspection. Gated on both the config flag AND Development because
+            // the workdir holds the rendered report — surveillance data — and so
+            // must never be retained on a production instance.
+            if (RenderFailed && _options.KeepFailedRenderWorkdir && Environment.IsDevelopment())
+                Logger.LogWarning(
+                    "Render failed; keeping its workdir for inspection (Reporting:KeepFailedRenderWorkdir + Development). "
+                    + "It holds the rendered report — delete it when done: {RenderRoot}",
+                    _renderRoot.FullName);
+            else
+                _renderRoot.Delete(recursive: true);
+        }
         return ValueTask.CompletedTask;
     }
 

@@ -405,7 +405,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         fonts-noto-core \
         fonts-noto-extra \
         locales && \
-    locale-gen de_DE.UTF-8 el_GR.UTF-8 en_GB.UTF-8 es_ES.UTF-8 et_EE.UTF-8 it_IT.UTF-8 tr_TR.UTF-8
+    locale-gen de_DE.UTF-8 el_GR.UTF-8 en_GB.UTF-8 es_ES.UTF-8 et_EE.UTF-8 it_IT.UTF-8 tr_TR.UTF-8  # keep in sync with LocaleResolver.DefaultTerritories — an ungenerated locale crashes lualatex/tlmgr
 
 # Attack-surface reduction: drop build-/desktop-only packages that have no role
 # at render time, so they neither ship in nor get scanned against the image.

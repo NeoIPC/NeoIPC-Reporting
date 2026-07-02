@@ -95,4 +95,91 @@ public class LocaleResolverTests
         Assert.That(result.Status, Is.EqualTo(LocaleResolver.Status.NoMatch));
         Assert.That(result.Locale, Is.Null);
     }
+
+    // --- exact-tag matching: LC_ALL must stay a locale the container generates ---
+
+    [Test]
+    public void Resolve_AcceptLanguage_UnservedTerritoryOnly_DoesNotMatch()
+    {
+        // en-US is a territory we don't generate; with no bare `en` offered we
+        // refuse rather than composing the ungenerated en_US.UTF-8 (which made
+        // lualatex/tlmgr hard-exit and Quarto misreport "missing packages").
+        var result = LocaleResolver.Resolve(
+            explicitLocale: null,
+            acceptLanguageHeaders: Accept("en-US"),
+            supportedLanguages: SupportedLanguages);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Status, Is.EqualTo(LocaleResolver.Status.NoMatch));
+            Assert.That(result.Locale, Is.Null);
+        });
+    }
+
+    [Test]
+    public void Resolve_AcceptLanguage_TypicalBrowser_ResolvesViaBareLanguage()
+    {
+        // en-US,en;q=0.9 (the common browser header, q-sorted to en-US, en): the
+        // unserved en-US is skipped and the client's own `en` resolves to en_GB.
+        var result = LocaleResolver.Resolve(
+            explicitLocale: null,
+            acceptLanguageHeaders: Accept("en-US", "en"),
+            supportedLanguages: SupportedLanguages);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Status, Is.EqualTo(LocaleResolver.Status.Resolved));
+            Assert.That(result.Locale!.Language, Is.EqualTo("en"));
+            Assert.That(result.Locale!.Territory, Is.EqualTo("GB"));
+            Assert.That(result.Locale!.LcAll, Is.EqualTo("en_GB.UTF-8"));
+        });
+    }
+
+    [Test]
+    public void Resolve_AcceptLanguage_ExactServedTerritory_Resolves()
+    {
+        var result = LocaleResolver.Resolve(
+            explicitLocale: null,
+            acceptLanguageHeaders: Accept("en-GB"),
+            supportedLanguages: SupportedLanguages);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Status, Is.EqualTo(LocaleResolver.Status.Resolved));
+            Assert.That(result.Locale!.LcAll, Is.EqualTo("en_GB.UTF-8"));
+        });
+    }
+
+    [Test]
+    public void Resolve_ExplicitUnservedTerritory_ReturnsExplicitUnsupported()
+    {
+        // An explicit ?locale=en-US names a locale we don't serve; per the
+        // explicit-wins-or-fails rule it is refused, not silently downgraded —
+        // and it must not consult the Accept-Language `en` behind it.
+        var result = LocaleResolver.Resolve(
+            explicitLocale: "en-US",
+            acceptLanguageHeaders: Accept("en"),
+            supportedLanguages: SupportedLanguages);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Status, Is.EqualTo(LocaleResolver.Status.ExplicitUnsupported));
+            Assert.That(result.Locale, Is.Null);
+        });
+    }
+
+    [Test]
+    public void Resolve_ExplicitBareLanguage_ResolvesToServedLocale()
+    {
+        var result = LocaleResolver.Resolve(
+            explicitLocale: "en",
+            acceptLanguageHeaders: Accept("de"),
+            supportedLanguages: SupportedLanguages);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Status, Is.EqualTo(LocaleResolver.Status.Resolved));
+            Assert.That(result.Locale!.LcAll, Is.EqualTo("en_GB.UTF-8"));
+        });
+    }
 }

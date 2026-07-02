@@ -58,6 +58,14 @@ abstract partial class ExternalProcessReportProducer : IDataProducer
     public string RenderId { get; protected set; }
 
     /// <summary>
+    /// Set once the render has failed (a non-zero exit that mapped to a failure
+    /// result, or an exception before output). Lets a subclass's
+    /// <see cref="DisposeAsync"/> decide whether to preserve scratch state for
+    /// inspection rather than delete it.
+    /// </summary>
+    protected bool RenderFailed { get; private set; }
+
+    /// <summary>
     /// Path the child writes its R <c>logger</c> <c>layout_json</c> records
     /// to (passed as <c>NEOIPC_LOG_FILE</c>), or <c>null</c> when the
     /// producer does not drain an R log. Drained by
@@ -140,7 +148,10 @@ abstract partial class ExternalProcessReportProducer : IDataProducer
             {
                 var returnValue = await HandleError(reportGenerationProcess.Id, reportGenerationProcess.ExitCode, bufferStream, stdErr.Result, cancellationToken);
                 if (!returnValue.Success)
+                {
+                    RenderFailed = true;
                     return returnValue;
+                }
             }
 
             return new DataResult(bufferStream, MediaType, GetFileDownloadName());
@@ -160,6 +171,7 @@ abstract partial class ExternalProcessReportProducer : IDataProducer
             // aborted request) rather than logging it as a failure or turning it into a 500.
             if (e is OperationCanceledException && cancellationToken.IsCancellationRequested)
                 throw;
+            RenderFailed = true;
             // Any other throw before output otherwise vanishes: the DataResult only surfaces the message
             // in Development, so in Production the caller sees a bare 500 with no trace of the cause. Log
             // it so production render failures are diagnosable.
