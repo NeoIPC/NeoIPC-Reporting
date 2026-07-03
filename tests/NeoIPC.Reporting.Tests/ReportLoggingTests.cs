@@ -237,6 +237,115 @@ public class ReportLoggingTests
     }
 
     [Test]
+    public async Task DrainQuartoLog_AtInformation_RoutesLatexFatalDetailToLatexAndLeavesBenignEngineOutputOnQuarto()
+    {
+        var (factory, entries) = BuildFactory(LogLevel.Information);
+        using var _ = factory;
+        // Records as Quarto actually writes them for a lualatex failure (captured
+        // from a real render): the benign engine banner and the extracted error
+        // detail both arrive as Quarto INFO records. Quarto strips the leading
+        // TeX "! " when it extracts the detail, so the surviving marker is the
+        // "l.<n>" line-context; the banner carries no marker.
+        var file = WriteLines(
+            """{"levelName":"INFO","level":20,"msg":"This is LuaHBTeX, Version 1.24.0 (TeX Live 2026) \n restricted system commands enabled.\nluaotfload | db : Font names database not found, generating new one.","loggerName":"default"}""",
+            """{"levelName":"ERROR","level":40,"msg":"\ncompilation failed- error","loggerName":"default"}""",
+            """{"levelName":"INFO","level":20,"msg":"Undefined control sequence.\nl.172 \\undefinedControlSequenceProbe\n","loggerName":"default"}""",
+            """{"levelName":"INFO","level":20,"msg":"see probe.log for more information.","loggerName":"default"}""");
+
+        await ReportLogDrain.DrainQuartoLogAsync(file, factory, RenderCategory, exitCode: 1, CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            // The fatal detail (TeX "l.<n>" marker) is recovered to .LaTeX at Error.
+            Assert.That(HasEntry(entries, $"{RenderCategory}.LaTeX", LogLevel.Error, "Undefined control sequence"), Is.True);
+            // The benign engine banner is NOT flagged — it stays on the Quarto channel at INFO.
+            Assert.That(HasEntry(entries, $"{RenderCategory}.Quarto", LogLevel.Information, "LuaHBTeX"), Is.True);
+            Assert.That(entries.Any(e => e.Category == $"{RenderCategory}.LaTeX" && e.Message.Contains("LuaHBTeX")), Is.False);
+            // Quarto's own "compilation failed-" record is untouched (already Error on .Quarto).
+            Assert.That(HasEntry(entries, $"{RenderCategory}.Quarto", LogLevel.Error, "compilation failed"), Is.True);
+            // The "see …log" pointer is not a fatal marker — it stays Quarto INFO, not on .LaTeX.
+            Assert.That(entries.Any(e => e.Category == $"{RenderCategory}.LaTeX" && e.Message.Contains("see probe.log")), Is.False);
+        });
+    }
+
+    [Test]
+    public async Task DrainQuartoLog_AtWarning_LatexFatalDetailSurvivesTheFloor()
+    {
+        var (factory, entries) = BuildFactory(LogLevel.Warning);
+        using var _ = factory;
+        // The engine's fatal detail arrives as a Quarto INFO record, so at a
+        // Warning threshold it would be dropped — recovering it to .LaTeX at
+        // Error keeps the cause visible next to the "compilation failed-" record.
+        var file = WriteLines(
+            """{"levelName":"INFO","level":20,"msg":"This is LuaHBTeX, Version 1.24.0 (TeX Live 2026)\n","loggerName":"default"}""",
+            """{"levelName":"INFO","level":20,"msg":"Undefined control sequence.\nl.172 \\undefinedControlSequenceProbe\n","loggerName":"default"}""");
+
+        await ReportLogDrain.DrainQuartoLogAsync(file, factory, RenderCategory, exitCode: 1, CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(HasEntry(entries, $"{RenderCategory}.LaTeX", LogLevel.Error, "l.172"), Is.True);
+            // The benign banner (INFO) is filtered by the Warning floor and never captured.
+            Assert.That(entries.Any(e => e.Message.Contains("LuaHBTeX")), Is.False);
+        });
+    }
+
+    [Test]
+    public async Task DrainQuartoLog_RoutesRedKnitrErrorsToRReportAtErrorButLeavesBenignProgressOnQuarto()
+    {
+        var (factory, entries) = BuildFactory(LogLevel.Information);
+        using var _ = factory;
+        // Records as Quarto writes them for a failing R chunk under the service's
+        // (quiet) render (captured from a real render): knitr's stderr is piped
+        // and re-emitted as red-colourised (ESC[31m) INFO records. The "processing
+        // file" progress is benign; the "Error:"/"! ", "Quitting from" and
+        // "Execution halted" records are the failure, logged at INFO. esc is built
+        // from its code point and JSON-escaped by the serialiser so the source
+        // carries no raw control byte.
+        var esc = (char)0x1b;
+        var file = WriteLines(
+            QuartoInfo($"{esc}[31m\n\nprocessing file: report.qmd\n{esc}[39m"),
+            QuartoInfo($"{esc}[31mError:\n! object 'foo' not found\n{esc}[39m"),
+            QuartoInfo($"{esc}[31m\nQuitting from report.qmd:12-20 [setup]\n{esc}[39m"),
+            QuartoInfo($"{esc}[31mExecution halted\n{esc}[39m"));
+
+        await ReportLogDrain.DrainQuartoLogAsync(file, factory, RenderCategory, exitCode: 1, CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            // Benign red R progress carries no error signal — stays on Quarto at INFO.
+            Assert.That(HasEntry(entries, $"{RenderCategory}.Quarto", LogLevel.Information, "processing file"), Is.True);
+            Assert.That(entries.Any(e => e.Category == $"{RenderCategory}.R.report" && e.Message.Contains("processing file")), Is.False);
+            // Each R-error record is recovered to .R.report at Error.
+            Assert.That(HasEntry(entries, $"{RenderCategory}.R.report", LogLevel.Error, "object 'foo' not found"), Is.True);
+            Assert.That(HasEntry(entries, $"{RenderCategory}.R.report", LogLevel.Error, "Quitting from"), Is.True);
+            Assert.That(HasEntry(entries, $"{RenderCategory}.R.report", LogLevel.Error, "Execution halted"), Is.True);
+            // The R rlang "! " bullet must NOT be read as a TeX error — nothing on .LaTeX.
+            Assert.That(entries.Any(e => e.Category == $"{RenderCategory}.LaTeX"), Is.False);
+        });
+    }
+
+    [Test]
+    public async Task DrainQuartoLog_AtWarning_RedKnitrErrorSurvivesTheFloorOnRReport()
+    {
+        var (factory, entries) = BuildFactory(LogLevel.Warning);
+        using var _ = factory;
+        var esc = (char)0x1b;
+        var file = WriteLines(
+            QuartoInfo($"{esc}[31m\n\nprocessing file: report.qmd\n{esc}[39m"),
+            QuartoInfo($"{esc}[31mError:\n! object 'foo' not found\n{esc}[39m"));
+
+        await ReportLogDrain.DrainQuartoLogAsync(file, factory, RenderCategory, exitCode: 1, CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(HasEntry(entries, $"{RenderCategory}.R.report", LogLevel.Error, "object 'foo' not found"), Is.True);
+            // The benign progress (INFO) is filtered by the Warning floor.
+            Assert.That(entries.Any(e => e.Message.Contains("processing file")), Is.False);
+        });
+    }
+
+    [Test]
     public async Task DrainRLog_PassesMessageVerbatim_NoFormatStringInterpretationOrExtraFields()
     {
         // GDPR/no-body invariant on the .NET side: the drain must pass the R
@@ -283,6 +392,12 @@ public class ReportLoggingTests
         _tempFiles.Add(path);
         return path;
     }
+
+    // A Quarto json-stream INFO record carrying an arbitrary msg. The serialiser
+    // JSON-escapes it, so control chars like ESC are emitted as their escape
+    // sequence rather than a raw byte the parser would reject.
+    static string QuartoInfo(string msg)
+        => $$"""{"levelName":"INFO","level":20,"msg":{{System.Text.Json.JsonSerializer.Serialize(msg)}},"loggerName":"default"}""";
 
     static LogEntry Single(List<LogEntry> entries, string category)
         => entries.Single(e => e.Category == category);

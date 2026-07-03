@@ -323,10 +323,11 @@ abstract class QuartoReportProducer : ExternalProcessReportProducer
     }
 
     // A Quarto render also drains the Quarto json-stream into the .Quarto /
-    // .Pandoc channels, so they join the sub-tree the child write-floor derives
-    // from (the base set covers only the root + R channels).
+    // .Pandoc / .LaTeX channels (and recovers R output Quarto captured onto its
+    // own stream to .R.report), so they join the sub-tree the child write-floor
+    // derives from (the base set covers only the root + R channels).
     protected override IReadOnlyList<string> DrainCategorySuffixes { get; } =
-        ["", ".R.report", ".R.common", ".R.neoipcr", ".Quarto", ".Pandoc"];
+        ["", ".R.report", ".R.common", ".R.neoipcr", ".Quarto", ".Pandoc", ".LaTeX"];
 
     protected override async ValueTask DrainDiagnostics(int exitCode, CancellationToken cancellationToken)
     {

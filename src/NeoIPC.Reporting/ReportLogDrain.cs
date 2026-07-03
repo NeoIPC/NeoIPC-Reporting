@@ -91,6 +91,8 @@ static partial class ReportLogDrain
 
         var quartoLogger = loggerFactory.CreateLogger($"{renderCategory}.Quarto");
         var pandocLogger = loggerFactory.CreateLogger($"{renderCategory}.Pandoc");
+        var latexLogger = loggerFactory.CreateLogger($"{renderCategory}.LaTeX");
+        var rLogger = loggerFactory.CreateLogger($"{renderCategory}.R.report");
 
         await foreach (var line in File.ReadLinesAsync(quartoLogFilePath, cancellationToken))
         {
@@ -148,6 +150,37 @@ static partial class ReportLogDrain
                     pandocLogger.Log(pandocLevel, "{Message}", message);
                     continue;
                 }
+
+                // R/knitr fatal recovery: under the service's (quiet) render,
+                // Quarto pipes the knitr child's stderr and re-emits it as its
+                // own INFO records, colourised red (ESC[31m) by the engine. The
+                // red progress lines are benign, but an R chunk error — an
+                // "Error:"/"Error in" message, the rlang "! " bullet, "Quitting
+                // from", "Execution halted" — is a render failure logged at INFO.
+                // Route those to .R.report at Error. (The structured DHIS2/neoipcr
+                // trace arrives separately via the layout_json file, drained with
+                // its true namespace by DrainRLogAsync; this path only recovers R
+                // output Quarto captured onto its own stream.)
+                if (message.Contains(KnitrColorCode) && RFatalContentRegex().IsMatch(message))
+                {
+                    rLogger.LogError("{Message}", message);
+                    continue;
+                }
+
+                // LaTeX fatal recovery: Quarto extracts the PDF engine's error
+                // from the .log and re-emits it as its own INFO record, having
+                // stripped the leading TeX "! " — so the surviving marker is
+                // TeX's "l.<n>" line-context, which R output never uses (R reports
+                // errors as "file:line"). Route it to .LaTeX at Error so the cause
+                // survives a Warning threshold alongside Quarto's own generic
+                // (already Error) "compilation failed-" record. Benign engine
+                // output (the LuaHBTeX banner) carries no marker and stays on the
+                // Quarto channel.
+                if (LatexFatalErrorRegex().IsMatch(message))
+                {
+                    latexLogger.LogError("{Message}", message);
+                    continue;
+                }
             }
 
             quartoLogger.Log(ReportLogging.FromQuartoLevel(levelName), "{Message}", message);
@@ -183,4 +216,30 @@ static partial class ReportLogDrain
     // messages. Pandoc emits only ERROR / WARNING / INFO.
     [GeneratedRegex(@"^\[(ERROR|WARNING|INFO)\]", RegexOptions.Multiline)]
     private static partial Regex PandocLevelPrefixRegex();
+
+    // knitr colourises the R stderr it streams to Quarto red (SGR "ESC[31m",
+    // Deno colors.red — refs/quarto-cli/src/execute/rmd.ts), so the escape marks
+    // a record as R-origin regardless of its (flattened) INFO level. The ESC is
+    // built from its code point (0x1B) so the source carries no raw control byte
+    // and no greedy C# \x escape.
+    private static readonly string KnitrColorCode = (char)0x1b + "[31m";
+
+    // Fatal signals inside an R-origin (red) record: a base/rlang error header
+    // ("Error:"/"Error in …"), the rlang "! " bullet, knitr's "Quitting from …"
+    // frame, and Rscript's terminal "Execution halted". Only applied to records
+    // already known to be R-origin (red), so "Error"/"! " cannot be confused
+    // with Quarto/Pandoc output. Multiline so ^ matches the "! " line within the
+    // batched record.
+    [GeneratedRegex(@"Execution halted|Quitting from|Error:|Error in |^! ", RegexOptions.Multiline)]
+    private static partial Regex RFatalContentRegex();
+
+    // Quarto extracts the PDF engine's error from the .log and re-emits it as its
+    // own INFO record, having stripped the leading TeX "! " (its findLatexError
+    // captures the text after "! "; refs/quarto-cli/src/command/render/latexmk).
+    // The surviving unambiguous marker is TeX's "l.<n>" line-context — which R
+    // never emits (R reports "file:line"), so it will not steal an R record.
+    // Line-anchored (it begins a line); Multiline so ^ matches within a batched
+    // record. The benign LuaHBTeX banner carries no such marker.
+    [GeneratedRegex(@"^l\.\d+ ", RegexOptions.Multiline)]
+    private static partial Regex LatexFatalErrorRegex();
 }
