@@ -122,7 +122,30 @@ abstract partial class ExternalProcessReportProducer : IDataProducer
             var stdOut = reportGenerationProcess.StandardOutput.BaseStream.CopyToAsync(bufferStream, cancellationToken);
             var stdErr = reportGenerationProcess.StandardError.ReadToEndAsync(cancellationToken);
 
-            await reportGenerationProcess.WaitForExitAsync(cancellationToken);
+            try
+            {
+                await reportGenerationProcess.WaitForExitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                // The request was cancelled (client disconnect or the request-timeout
+                // middleware) while the child was still running. Disposing the managed
+                // Process does not terminate the OS process, and quarto re-execs into
+                // Rscript/lualatex/pandoc, so kill the whole tree — otherwise orphaned
+                // render trees accumulate under repeated timeouts until the container
+                // OOMs. A child that exited between the cancellation and the kill is a
+                // no-op (Kill swallows that race internally); any genuine kill failure
+                // is logged but must not mask the cancellation the caller still needs.
+                try
+                {
+                    reportGenerationProcess.Kill(entireProcessTree: true);
+                }
+                catch (Exception killError)
+                {
+                    Logger.LogWarning(killError, "Failed to kill the cancelled render's process tree.");
+                }
+                throw;
+            }
             await Task.WhenAll(stdOut, stdErr);
 
             // The child's structured log files are complete only now that it
