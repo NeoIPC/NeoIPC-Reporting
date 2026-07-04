@@ -42,7 +42,7 @@ abstract partial class ExternalProcessReportProducer : IDataProducer
     /// Root category of this render's logger tree —
     /// <c>NeoIPC.Reporting.Render.&lt;report&gt;</c>. The service's own
     /// render messages log here; the drained child diagnostics log under
-    /// its <c>.Quarto</c>/<c>.Pandoc</c>/<c>.R.*</c> children.
+    /// its <c>.Quarto</c>/<c>.Pandoc</c>/<c>.LaTeX</c>/<c>.R.*</c> children.
     /// </summary>
     protected string RenderCategory { get; }
 
@@ -64,6 +64,12 @@ abstract partial class ExternalProcessReportProducer : IDataProducer
     /// inspection rather than delete it.
     /// </summary>
     protected bool RenderFailed { get; private set; }
+
+    // How long to wait for a killed process tree to actually exit on the
+    // cancellation path before returning, so a subclass's workdir cleanup does
+    // not race a descendant still tearing down. Kill(entireProcessTree) only
+    // sends the signal; this bounds the teardown wait.
+    const int KillGraceMilliseconds = 5000;
 
     /// <summary>
     /// Path the child writes its R <c>logger</c> <c>layout_json</c> records
@@ -125,17 +131,20 @@ abstract partial class ExternalProcessReportProducer : IDataProducer
             try
             {
                 await reportGenerationProcess.WaitForExitAsync(cancellationToken);
+                await Task.WhenAll(stdOut, stdErr);
             }
             catch (OperationCanceledException)
             {
                 // The request was cancelled (client disconnect or the request-timeout
-                // middleware) while the child was still running. Disposing the managed
-                // Process does not terminate the OS process, and quarto re-execs into
-                // Rscript/lualatex/pandoc, so kill the whole tree — otherwise orphaned
-                // render trees accumulate under repeated timeouts until the container
-                // OOMs. A child that exited between the cancellation and the kill is a
-                // no-op (Kill swallows that race internally); any genuine kill failure
-                // is logged but must not mask the cancellation the caller still needs.
+                // middleware). Both awaits above can run while the child is still
+                // alive — including the pipe drain, the precise OOM scenario — so kill
+                // the whole tree here: disposing the managed Process does not terminate
+                // the OS process, and quarto re-execs into Rscript/lualatex/pandoc, so
+                // only entireProcessTree reaches the children. Otherwise orphaned render
+                // trees accumulate under repeated timeouts until the container OOMs. A
+                // child that exited between the cancellation and the kill makes the
+                // calls no-ops; any genuine kill failure is logged but must not mask
+                // the cancellation the caller still needs.
                 try
                 {
                     reportGenerationProcess.Kill(entireProcessTree: true);
@@ -144,9 +153,20 @@ abstract partial class ExternalProcessReportProducer : IDataProducer
                 {
                     Logger.LogWarning(killError, "Failed to kill the cancelled render's process tree.");
                 }
+
+                // Kill only sends the signal; wait (bounded) for the killed root to
+                // exit — its SIGKILL'd descendants are torn down alongside it — so a
+                // subclass's workdir delete in DisposeAsync does not race the teardown.
+                try { reportGenerationProcess.WaitForExit(KillGraceMilliseconds); }
+                catch (Exception) { /* already gone / handle invalid — best effort */ }
+
+                // A hung or timed-out render is exactly the case KeepFailedRenderWorkdir
+                // is meant to diagnose, yet it is otherwise the only failure whose
+                // workdir is always deleted. Mark it failed so the dev aid can retain it
+                // (the keep/delete gate — flag + IsDevelopment — lives in DisposeAsync).
+                RenderFailed = true;
                 throw;
             }
-            await Task.WhenAll(stdOut, stdErr);
 
             // The child's structured log files are complete only now that it
             // has exited, so this is inherently a post-process drain. Run it on
