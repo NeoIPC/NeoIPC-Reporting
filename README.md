@@ -106,9 +106,9 @@ docker build -f src/NeoIPC.Reporting/Dockerfile \
 # Pinned tags (the release path): a Surveillance-Toolkit reports-v* tag + a neoipcr tag.
 # These are the values pinned-sources.yml records; the release workflow passes them for you.
 docker build -f src/NeoIPC.Reporting/Dockerfile \
-  --build-arg REPORTS_SOURCE=github-tag --build-arg REPORTS_TAG=reports-v0.1.0-alpha \
-  --build-arg NEOIPCR_SOURCE=github-tag --build-arg NEOIPCR_TAG=v0.1.0.9000 \
-  -t neoipc-reporting:v0.1.4 .
+  --build-arg REPORTS_SOURCE=github-tag --build-arg REPORTS_TAG=reports-v0.0.1-alpha \
+  --build-arg NEOIPCR_SOURCE=github-tag --build-arg NEOIPCR_TAG=v0.0.0.9000 \
+  -t neoipc-reporting:v0.2.0 .
 
 # Workspace build (sibling checkouts supplied via named build contexts).
 cd repos/NeoIPC-Reporting

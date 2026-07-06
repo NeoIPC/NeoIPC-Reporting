@@ -17,9 +17,9 @@
 
 reports:
   # Surveillance-Toolkit NeoIPC Surveillance Reports release (dash-prefixed product tag).
-  tag: reports-v0.1.0-alpha
+  tag: reports-v0.0.1-alpha
 
 neoipcr:
   # neoipcr dev-snapshot tag (matches its DESCRIPTION dev version; v0.1.0 stays reserved for CRAN).
   # Must equal the neoipcr the pinned reports release was tested against.
-  tag: v0.1.0.9000
+  tag: v0.0.0.9000

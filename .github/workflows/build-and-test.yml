@@ -32,32 +32,8 @@ concurrency:
 
 jobs:
   unit:
-    name: Unit + generator tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: 10.0.x
-          dotnet-quality: preview
-      - name: Restore
-        run: dotnet restore tests/NeoIPC.Reporting.Tests/NeoIPC.Reporting.Tests.csproj
-      - name: Test (unit + generator)
-        # Excludes both container-smoke (Category=Container, needs Docker +
-        # a built image) and the shared-seeded-stack tests
-        # (Category=Integration, workspace-driven). Leaves Unit + Generator.
-        run: >
-          dotnet test tests/NeoIPC.Reporting.Tests/NeoIPC.Reporting.Tests.csproj
-          --no-restore
-          --filter "Category!=Integration&Category!=Container"
-          --logger "trx;LogFileName=test-results.trx"
-          --results-directory TestResults
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: unit-test-results
-          path: TestResults/
+    # Reusable unit + generator test job, shared with release.yml so a released image runs the same tests.
+    uses: ./.github/workflows/unit-tests.yml
 
   dockerfile:
     # Validate that the Dockerfile builds without running the full

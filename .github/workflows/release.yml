@@ -25,7 +25,7 @@ on:
         required: false
 
 permissions:
-  contents: read
+  contents: write   # the publish job creates a GitHub Release documenting the image
   packages: write
 
 concurrency:
@@ -33,11 +33,52 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  test:
+    name: Unit + generator tests
+    # Reuse the same unit/generator suite build-and-test.yml runs, so a released image is never built from
+    # a commit whose tests fail.
+    uses: ./.github/workflows/unit-tests.yml
+
   publish:
     name: Build and push image to GHCR
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0     # full tag history for the monotonic guard
+      - name: Reject a moved / retagged release tag
+        # A tag push with created=false means an existing tag was force-moved. Releases are immutable --
+        # cut a new version rather than re-pointing a tag. (The created gate beats a Release-existence check
+        # here: this workflow publishes the image + Release last.)
+        if: github.event_name == 'push' && github.event.created != true
+        shell: bash
+        run: |
+          echo "::error::Tag '$GITHUB_REF_NAME' already existed and was moved; releases are immutable. Cut a new version instead."
+          exit 1
+      - name: Enforce monotonic version (per-line, semver-correct)
+        # Reject a within-line version regression before the expensive image build; a new major.minor line
+        # (and backports on older lines) are allowed. Map a pre-release '-' -> '~' before `sort -V` so its
+        # tilde rule honours semver pre-release precedence.
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          tag="$GITHUB_REF_NAME"; ver="${tag#v}"
+          line="$(cut -d. -f1-2 <<<"$ver")."
+          # fetch-depth: 0 includes the triggering tag; exclude it so the comparison uses the genuinely
+          # previous tag on this line, not this release itself.
+          mapfile -t vers < <(git tag -l 'v*' | sed 's/^v//' | grep -vxF "$ver" || true)
+          same="$(printf '%s\n' "${vers[@]}" | grep -E "^${line//./\\.}" | sed 's/-/~/' | sort -V | sed 's/~/-/' | tail -1 || true)"
+          if [ -n "$same" ]; then
+            hi="$(printf '%s\n%s\n' "$same" "$ver" | sed 's/-/~/' | sort -V | sed 's/~/-/' | tail -1)"
+            if [ "$hi" != "$ver" ]; then
+              echo "::error::Release '$ver' is not greater than the last released '$same' on the ${line%.} line."
+              exit 1
+            fi
+            echo "Monotonic OK: $ver > $same (line ${line%.})."
+          else
+            echo "Monotonic OK: new ${line%.} line."
+          fi
       - id: pins
         name: Resolve pinned sources + enforce cross-repo consistency
         # Read the baked-in source tags from pinned-sources.yml (a workflow_dispatch input overrides the
@@ -123,3 +164,15 @@ jobs:
             NEOIPCR_SOURCE=github-tag
             NEOIPCR_REPO=NeoIPC/neoipcr
             NEOIPCR_TAG=${{ steps.pins.outputs.neoipcr_tag }}
+
+      - name: Create the GitHub Release
+        # Document the pushed image with a Release (generated notes; pre-release for a pre-release tag). The
+        # image is the deliverable, so no asset is attached. Only on a tag push, not on dispatch rebuilds.
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          tag="$GITHUB_REF_NAME"
+          pre=""; case "$tag" in *-*) pre="--prerelease";; esac
+          gh release create "$tag" --generate-notes $pre
