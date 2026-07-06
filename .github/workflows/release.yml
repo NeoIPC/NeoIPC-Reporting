@@ -24,9 +24,10 @@ on:
         default: ''
         required: false
 
+# Least-privilege default: the reusable test job runs read-only; only the publish job elevates to the
+# writes it needs (Release creation + GHCR push), scoped at the job level.
 permissions:
-  contents: write   # the publish job creates a GitHub Release documenting the image
-  packages: write
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
@@ -42,6 +43,9 @@ jobs:
   publish:
     name: Build and push image to GHCR
     needs: test
+    permissions:
+      contents: write   # gh release create documents the image
+      packages: write   # push to GHCR
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -175,4 +179,7 @@ jobs:
         run: |
           tag="$GITHUB_REF_NAME"
           pre=""; case "$tag" in *-*) pre="--prerelease";; esac
+          # Idempotent: an Actions re-run reuses the original push payload (created stays true, so the retag
+          # guard passes) — skip creation if a prior (partial) run already made the Release.
+          gh release view "$tag" >/dev/null 2>&1 && { echo "Release $tag already exists; skipping creation."; exit 0; }
           gh release create "$tag" --generate-notes $pre
