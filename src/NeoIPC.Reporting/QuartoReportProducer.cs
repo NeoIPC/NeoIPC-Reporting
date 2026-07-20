@@ -275,9 +275,13 @@ abstract class QuartoReportProducer : ExternalProcessReportProducer
         // drain uses that red (ESC[31m) as the language-independent gate that
         // identifies R-origin records. Deno gates its colour on !Deno.noColor, so
         // an inherited NO_COLOR would silently disable the gate and re-bury R
-        // errors at INFO on .Quarto — scrub it from the child env. (Deno reads
-        // only NO_COLOR; no positive force-colour var is needed.)
+        // errors at INFO on .Quarto — scrub it from the child env. That scrub
+        // is what the gate depends on; FORCE_COLOR rides along as the
+        // conventional positive signal. Assign rather than Add:
+        // StringDictionary.Add throws ArgumentException when the parent
+        // environment already carries the key.
         startInfo.EnvironmentVariables.Remove("NO_COLOR");
+        startInfo.EnvironmentVariables["FORCE_COLOR"] = "1";
 
         return startInfo;
 

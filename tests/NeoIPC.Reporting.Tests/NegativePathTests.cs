@@ -31,8 +31,7 @@ public class NegativePathTests
     [OneTimeSetUp]
     public async Task StartContainer()
     {
-        _container = new ContainerBuilder()
-            .WithImage(ImageTag)
+        _container = new ContainerBuilder(ImageTag)
             .WithPortBinding(8080, true)
             .WithEnvironment("ASPNETCORE_HTTP_PORTS", "8080")
             .WithWaitStrategy(Wait.ForUnixContainer()
