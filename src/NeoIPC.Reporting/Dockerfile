@@ -24,13 +24,10 @@ ARG TINYTEX_VERSION=2026.05
 ARG TINYTEX_TLNET_SNAPSHOT=2026/05/02
 ARG QUARTO_VERSION=1.9.38
 ARG ESBUILD_VERSION=0.27.3
-# r-base-core anchor. Currently the transient r2u stopgap value (held at 4.6.0
-# while r2u catches up to CRAN's 4.6.1 — see the r-runtime stage); becomes the
-# deliberate R anchor once that skew heals. The r-cran-* packages are NOT pinned:
-# r2u is a rolling current-CRAN mirror with no dated snapshots and no old-version
-# retention, so a version pin can't be held — they track CRAN, and a deliberate
-# validated rebuild is the reproducibility unit.
-ARG RBASECORE_VERSION=4.6.0
+# R (r-base-core) and the r-cran-* packages are deliberately NOT pinned in this inventory:
+# r2u is a rolling current-CRAN mirror with no dated snapshots and no old-version retention,
+# so a version pin can't be held — they track CRAN, and a deliberate validated rebuild is the
+# reproducibility unit. R is installed in the r-runtime stage below.
 
 # Three reports-source modes selected via build-arg REPORTS_SOURCE:
 #   github-branch   - default. Clone ${REPORTS_REPO} at branch ${REPORTS_BRANCH}
@@ -199,7 +196,6 @@ RUN set -eu; \
 
 FROM ${DOTNET_ASPNET_IMAGE} AS r-runtime
 ARG DEBIAN_FRONTEND=noninteractive
-ARG RBASECORE_VERSION
 
 # CRAN apt key — needed for r-base-core (newer than Ubuntu's r-base-core).
 ADD --chown=1 --chmod=644 --checksum=sha256:ffa734347fd95fd7393f575448ba5e52cf3137067db77224d4857863351e4e8f \
@@ -227,14 +223,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     # ("OpenSSL ... unexpected eof while reading"). Retry fetches and disable HTTP pipelining so a dropped
     # connection re-fetches the one file instead of failing the whole apt batch.
     printf 'Acquire::Retries "5";\nAcquire::http::Pipeline-Depth "0";\n' > /etc/apt/apt.conf.d/80-retries && \
-    # Transient stopgap: boost r-base-core to the RBASECORE_VERSION anchor. CRAN's r-base-core 4.6.1 declares
-    # `Breaks: r-cran-rlang (< 1.2.0-5~)` while r2u still serves rlang 1.2.0-1 — a CRAN-vs-r2u release lag that
-    # makes the whole r-cran-* set unresolvable; 4.6.0 lacks that Breaks, so the install resolves. This is a
-    # version-glob pin (priority 1001 only boosts a *present* 4.6.0): once r2u advances past it the glob matches
-    # nothing and apt falls back to the current r-base-core — the build never breaks, it just holds R at 4.6.0
-    # until removed. Drop this pin once r2u serves r-cran-rlang >= 1.2.0-5. (printf, not a COPY heredoc, so it
-    # can consume the RBASECORE_VERSION ARG.)
-    printf 'Package: r-base-core\nPin: version %s-*\nPin-Priority: 1001\n' "${RBASECORE_VERSION}" > /etc/apt/preferences.d/98-rbasecore-stopgap && \
     apt-get -qq update && \
     apt-get -qq install --no-install-recommends \
         software-properties-common \
