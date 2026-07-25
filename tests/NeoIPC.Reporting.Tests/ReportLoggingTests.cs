@@ -217,6 +217,59 @@ public class ReportLoggingTests
     }
 
     [Test]
+    public async Task DrainQuartoLog_VeraPdfAbsent_IsLoweredToDebug()
+    {
+        var (factory, entries) = BuildFactory(LogLevel.Trace);
+        using var _ = factory;
+        // Generate-only PDF/A: veraPDF is deliberately absent from the runtime image,
+        // so Quarto says so on every render. Benign, and must not recur at Warning.
+        var file = WriteLines(
+            """{"levelName":"WARNING","level":6,"msg":"verapdf is not installed, skipping validation","loggerName":"quarto"}""");
+
+        await ReportLogDrain.DrainQuartoLogAsync(
+            file, factory, RenderCategory, exitCode: 0, CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                HasEntry(entries, $"{RenderCategory}.Quarto", LogLevel.Debug, "verapdf is not installed, skipping validation"),
+                Is.True);
+            Assert.That(
+                entries.Any(e => e.Level >= LogLevel.Warning),
+                Is.False,
+                "the veraPDF-absent notice must not surface at Warning or above");
+        });
+    }
+
+    [Test]
+    public async Task DrainQuartoLog_KomaTaggingUnsupported_IsRaisedToError()
+    {
+        var (factory, entries) = BuildFactory(LogLevel.Trace);
+        using var _ = factory;
+        // KOMA-Script cannot produce tagged PDF. If tagging ever becomes active — a
+        // PDF/UA standard re-added, or LaTeX auto-activating it — every heading is
+        // silently emitted as ordinary paragraph text. Quarto reports the class
+        // warning as its own INFO, so without this it would vanish into the noise.
+        var file = WriteLines(
+            """{"levelName":"INFO","level":2,"msg":"Package scrartcl Warning: Activated tagging detected but not supported!","loggerName":"quarto"}""");
+
+        await ReportLogDrain.DrainQuartoLogAsync(
+            file, factory, RenderCategory, exitCode: 0, CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                HasEntry(entries, $"{RenderCategory}.LaTeX", LogLevel.Error,
+                    "Package scrartcl Warning: Activated tagging detected but not supported!"),
+                Is.True);
+            // It must not also land on .Quarto at its original INFO level.
+            Assert.That(
+                entries.Any(e => e.Category == $"{RenderCategory}.Quarto"),
+                Is.False);
+        });
+    }
+
+    [Test]
     public async Task DrainQuartoLog_MultiLinePandocRecord_RecoversTheMostSevereLevel()
     {
         var (factory, entries) = BuildFactory(LogLevel.Warning);

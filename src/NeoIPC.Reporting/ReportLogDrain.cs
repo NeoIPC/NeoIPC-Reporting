@@ -218,14 +218,28 @@ static partial class ReportLogDrain
                 continue;
             }
 
-            // Generate-only PDF/A + PDF/UA: the reports set `pdf-standard` but the runtime
-            // image ships no veraPDF (conformance validation is a design-time/CI concern, not
-            // a per-render one). Quarto then emits a benign "verapdf is not installed" WARNING
-            // on every render; drop it to Debug so it does not recur at Warning on .Quarto.
+            // Generate-only PDF/A: the reports set `pdf-standard` but the runtime image ships
+            // no veraPDF (conformance validation is a design-time/CI concern, not a per-render
+            // one). Quarto then emits a benign "verapdf is not installed" WARNING on every
+            // render; drop it to Debug so it does not recur at Warning on .Quarto.
             // Generation (LuaLaTeX) is unaffected — the standard-compliant PDF is still produced.
             if (message.Contains("verapdf is not installed", StringComparison.Ordinal))
             {
                 quartoLogger.LogDebug("{Message}", display);
+                continue;
+            }
+
+            // KOMA-Script cannot produce tagged PDF, so the reports declare PDF/A-4 only and
+            // never activate tagging. Should tagging become active anyway — someone re-adding a
+            // PDF/UA standard, or a LaTeX release auto-activating it under \DocumentMetadata —
+            // the class emits this warning and silently degrades every heading to ordinary
+            // paragraph text, while the file may still assert conformance. Nothing else catches
+            // it: Quarto's PDF/UA linter matches `Package tagpdf Warning:` and the unset-language
+            // warning, not `Package scrartcl Warning:`, and no veraPDF runs here. Raise it to
+            // Error so the regression is loud rather than buried in Quarto's INFO stream.
+            if (message.Contains("Activated tagging detected but not supported", StringComparison.Ordinal))
+            {
+                latexLogger.LogError("{Message}", display);
                 continue;
             }
 
