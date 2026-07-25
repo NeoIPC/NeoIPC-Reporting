@@ -22,7 +22,7 @@ ARG DOTNET_SDK_IMAGE=mcr.microsoft.com/dotnet/sdk:10.0-resolute@sha256:196f61c62
 ARG ALPINE_GIT_IMAGE=alpine/git:v2.52.0@sha256:4a0e72d49596a1f5d3701aeedafdadc5c0da4062be4657c7bdc4017387f591cc
 ARG TINYTEX_VERSION=2026.05
 ARG TINYTEX_TLNET_SNAPSHOT=2026/05/02
-ARG QUARTO_VERSION=1.9.38
+ARG QUARTO_VERSION=1.10.18
 ARG ESBUILD_VERSION=0.27.3
 # R (r-base-core) and the r-cran-* packages are deliberately NOT pinned in this inventory:
 # r2u is a rolling current-CRAN mirror with no dated snapshots and no old-version retention,
@@ -338,14 +338,18 @@ USER $APP_UID
 # demanding `tlmgr update --self`; the dated archive snapshot matches the bundle's tlmgr, so install just
 # works — and being immutable it makes the installed package set reproducible build-to-build. gnupg (added
 # above) lets tlmgr verify the snapshot's signature rather than warning "gpg unavailable".
+# colorprofiles + tagpdf: support for PDF/A-2b + PDF/UA-1 tagged-PDF output. The reports set
+# `pdf-standard: [a-2b, ua-1]`; Quarto emits \DocumentMetadata{pdfstandard, tagging=on, xmp=true} on
+# LuaLaTeX — tagpdf drives the structure tagging, colorprofiles supplies the ICC output intent for PDF/A.
+# (\DocumentMetadata and the xmp/pdfmanagement layer are in the TeX Live 2026 kernel; no extra package.)
 RUN tar xf /tmp/TinyTeX.tar.xz -C $HOME && \
     ~/.TinyTeX/bin/x86_64-linux/tlmgr option repository https://texlive.info/tlnet-archive/${TINYTEX_TLNET_SNAPSHOT}/tlnet && \
     ~/.TinyTeX/bin/x86_64-linux/tlmgr install \
         anyfontsize babel babel-english babel-estonian babel-german \
         babel-greek babel-italian babel-spanish babel-turkish caption \
-        colortbl fontawesome5 footnotehyper koma-script luatexbase \
+        colorprofiles colortbl fontawesome5 footnotehyper koma-script luatexbase \
         microtype multirow parskip pdfcol placeins \
-        selnolig tcolorbox tikzfill upquote wrapfig \
+        selnolig tagpdf tcolorbox tikzfill upquote wrapfig \
         xurl
 
 # ----------------------------------------------------------------------------
@@ -354,7 +358,7 @@ RUN tar xf /tmp/TinyTeX.tar.xz -C $HOME && \
 FROM ${DOTNET_ASPNET_IMAGE} AS quarto-downloader
 ARG QUARTO_VERSION
 ARG ESBUILD_VERSION
-ADD --checksum=sha256:ea8c897368791ad9f200010c087ea3111b2e556b12a960487dd4e216902aa102 \
+ADD --checksum=sha256:afad071b5bd22c02f2d300695743189d3650e0537a53073e654b630cff2b0c73 \
     https://github.com/quarto-dev/quarto-cli/releases/download/v${QUARTO_VERSION}/quarto-${QUARTO_VERSION}-linux-amd64.tar.gz \
     /tmp/quarto.tar.gz
 ADD --checksum=sha256:066e20cdb882994160e18524a552b97e03648eb9aa0c7cdf5680a6493be65ab2 \
