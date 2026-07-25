@@ -338,17 +338,17 @@ USER $APP_UID
 # demanding `tlmgr update --self`; the dated archive snapshot matches the bundle's tlmgr, so install just
 # works — and being immutable it makes the installed package set reproducible build-to-build. gnupg (added
 # above) lets tlmgr verify the snapshot's signature rather than warning "gpg unavailable".
-# colorprofiles + tagpdf: support for PDF/A-2b + PDF/UA-1 tagged-PDF output. The reports set
-# `pdf-standard: [a-2b, ua-1]`; Quarto emits \DocumentMetadata{pdfstandard, tagging=on, xmp=true} on
-# LuaLaTeX — tagpdf drives the structure tagging, colorprofiles supplies the ICC output intent for PDF/A.
-# (\DocumentMetadata and the xmp/pdfmanagement layer are in the TeX Live 2026 kernel; no extra package.)
+# pdfmanagement-testphase + tagpdf + colorprofiles: support for tagged, archival PDF output. The reports
+# request PDF/A + PDF/UA via `pdf-standard`, which Quarto emits as \DocumentMetadata{pdfstandard, tagging=on,
+# xmp=true} on LuaLaTeX — pdfmanagement-testphase provides pdfmanagement-init.sty (the \DocumentMetadata
+# backend), tagpdf drives the structure tagging, colorprofiles supplies the ICC output intent PDF/A needs.
 RUN tar xf /tmp/TinyTeX.tar.xz -C $HOME && \
     ~/.TinyTeX/bin/x86_64-linux/tlmgr option repository https://texlive.info/tlnet-archive/${TINYTEX_TLNET_SNAPSHOT}/tlnet && \
     ~/.TinyTeX/bin/x86_64-linux/tlmgr install \
         anyfontsize babel babel-english babel-estonian babel-german \
         babel-greek babel-italian babel-spanish babel-turkish caption \
         colorprofiles colortbl fontawesome5 footnotehyper koma-script luatexbase \
-        microtype multirow parskip pdfcol placeins \
+        microtype multirow parskip pdfcol pdfmanagement-testphase placeins \
         selnolig tagpdf tcolorbox tikzfill upquote wrapfig \
         xurl
 
