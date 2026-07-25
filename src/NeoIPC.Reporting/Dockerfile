@@ -11,9 +11,9 @@
 #     still pulls resolute security updates for the apt-managed libraries.
 #   * Version ARGs hold the bare number (no leading `v`); the `v` is prepended at
 #     the URL where the upstream tag carries one (TinyTeX, Quarto).
-#   * The TinyTeX / Quarto / esbuild `ADD --checksum` values are version-coupled
-#     and stay inline at their ADD lines — bump the checksum together with the
-#     matching version ARG here.
+#   * The TinyTeX / Quarto `ADD --checksum` values are version-coupled and stay
+#     inline at their ADD lines — bump the checksum together with the matching
+#     version ARG here.
 #   * TINYTEX_TLNET_SNAPSHOT must track TINYTEX_VERSION (its tlmgr revision has to
 #     match the bundle's — see the tinytex-builder stage).
 # ----------------------------------------------------------------------------
@@ -23,7 +23,6 @@ ARG ALPINE_GIT_IMAGE=alpine/git:v2.52.0@sha256:4a0e72d49596a1f5d3701aeedafdadc5c
 ARG TINYTEX_VERSION=2026.05
 ARG TINYTEX_TLNET_SNAPSHOT=2026/05/02
 ARG QUARTO_VERSION=1.10.18
-ARG ESBUILD_VERSION=0.27.3
 # R (r-base-core) and the r-cran-* packages are deliberately NOT pinned in this inventory:
 # r2u is a rolling current-CRAN mirror with no dated snapshots and no old-version retention,
 # so a version pin can't be held — they track CRAN, and a deliberate validated rebuild is the
@@ -361,21 +360,14 @@ RUN tar xf /tmp/TinyTeX.tar.xz -C $HOME && \
 # ----------------------------------------------------------------------------
 FROM ${DOTNET_ASPNET_IMAGE} AS quarto-downloader
 ARG QUARTO_VERSION
-ARG ESBUILD_VERSION
 ADD --checksum=sha256:afad071b5bd22c02f2d300695743189d3650e0537a53073e654b630cff2b0c73 \
     https://github.com/quarto-dev/quarto-cli/releases/download/v${QUARTO_VERSION}/quarto-${QUARTO_VERSION}-linux-amd64.tar.gz \
     /tmp/quarto.tar.gz
-ADD --checksum=sha256:066e20cdb882994160e18524a552b97e03648eb9aa0c7cdf5680a6493be65ab2 \
-    https://registry.npmjs.org/@esbuild/linux-x64/-/linux-x64-${ESBUILD_VERSION}.tgz \
-    /tmp/esbuild.tgz
-# Replace Quarto's bundled esbuild with the pinned build, then drop only the tools we don't use.
-# Keep tools/x86_64/deno — it is Quarto's runtime (the `quarto` launcher execs it for every command),
-# so removing it breaks ALL rendering with exit 127. We render via LaTeX (not typst) and don't use
-# Jupyter, so those two are safe to drop.
+# Drop only the tools we don't use. Keep tools/x86_64/deno — it is Quarto's runtime (the `quarto`
+# launcher execs it for every command), so removing it breaks ALL rendering with exit 127. We render
+# via LaTeX (not typst) and don't use Jupyter, so those two are safe to drop.
 RUN mkdir -p /opt/quarto && \
     tar -zxf /tmp/quarto.tar.gz -C /opt/quarto --strip-components=1 && \
-    tar -zxf /tmp/esbuild.tgz -C /tmp && \
-    cp /tmp/package/bin/esbuild /opt/quarto/bin/tools/x86_64/esbuild && \
     rm -rf /opt/quarto/bin/tools/x86_64/typst* \
            /opt/quarto/share/jupyter
 
