@@ -1,9 +1,31 @@
-# NeoIPC.Reporting
+# NeoIPC-Reporting
 
-ASP.NET Core minimal-API container that renders the NeoIPC Surveillance
-Toolkit's Quarto reports (PDF / HTML) and exposes the underlying datasets
-as JSON. Authenticates via DHIS2 session cookies; gates admin endpoints
-with claims-based authorization derived from the user's DHIS2 authorities.
+[![build-and-test](https://github.com/NeoIPC/NeoIPC-Reporting/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/NeoIPC/NeoIPC-Reporting/actions/workflows/build-and-test.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+The service that turns NeoIPC surveillance data into a report someone can read. It is an
+ASP.NET Core minimal-API application, shipped as a container, that renders the
+[Surveillance-Toolkit](https://github.com/NeoIPC/Surveillance-Toolkit)'s Quarto reports to
+PDF or HTML on request — and exposes the datasets behind them as JSON.
+
+[NeoIPC](https://neoipc.org) works to reduce the transmission of resistant bacteria in
+neonatal intensive care across Europe and globally; its
+[surveillance system](https://neoipc.org/surveillance/) collects healthcare-associated
+infection and antimicrobial-use data from neonatal departments. This service is what gives
+a department its results back.
+
+## What it does
+
+- **Renders reports on demand** — currently the Partner Report a department receives and the
+  network-wide Reference Report. A render runs Quarto over the toolkit's report sources,
+  with the [neoipcr](https://github.com/NeoIPC/neoipcr) R package pulling and computing the
+  data behind them.
+- **Serves the underlying datasets as JSON**, for callers that want the numbers rather than
+  the document.
+- **Authenticates against DHIS2** by forwarding the caller's session cookie, and gates
+  administrative endpoints with claims derived from that user's DHIS2 authorities.
+- **Bakes its own inputs.** A released image records the exact report sources and neoipcr
+  version it shipped, so a report can be reproduced later rather than merely re-rendered.
 
 ## Repository layout
 
@@ -19,6 +41,7 @@ with claims-based authorization derived from the user's DHIS2 authorities.
   environment variables read by `ExternalDhis2Fixture`) and self-skips
   when the stack is unreachable (see `.github/workflows/build-and-test.yml`).
 - `compose.yml` — minimal stack: Postgres + DHIS2 + this service + Traefik.
+- `pinned-sources.yml` — the report-sources and neoipcr tags a released image bakes.
 
 ### Running tests locally
 
@@ -35,23 +58,46 @@ dotnet test --filter "Category=Container"
 dotnet test --filter "Category=Integration"
 ```
 
-## Workspace IDE launch (F5)
+## A simple local development stack
 
-Double-clicking `NeoIPC-Reporting.sln` and pressing F5 in Visual Studio
-runs the **Workspace** profile out of the box: the .NET service starts
-locally and points at `repos/Surveillance-Toolkit/reports` and
-`repos/neoipcr` from the parent workspace checkout. Edits to the toolkit
-or to neoipcr show up on the next render — no rebuild needed.
+```bash
+cp .env.sample .env   # then edit: the sample's passwords are placeholders
+docker compose up --build
+```
 
-This works only when the project is opened *inside* the workspace
-checkout (i.e. via the workspace's nested `repos/NeoIPC-Reporting/`).
-The workspace-relative paths in `appsettings.Development.json` are
-resolved at startup against the host's `ContentRoot`.
+Brings up Postgres + DHIS2 + this service + Traefik on `localhost:${TRAEFIK_PORT:-8080}`.
+Every variable in the sample without a documented default is required — compose
+substitutes an unset one with an empty string, so a missing value surfaces late
+and unhelpfully (`postgis/postgis:` with no tag) rather than as a clear error.
 
-For DHIS2 authentication and live data, run a DHIS2 stack on the side
-(typically the workspace's own `repos/neoipc-dhis2/compose.yml`) and
-override `Reporting:Dhis2BaseUrl` via env var or
-`appsettings.Development.local.json`.
+Compose picks up [`compose.override.yml`](compose.override.yml) automatically, so
+this is a **development** stack rather than a production-shaped one: it builds the
+service in `Debug`, runs it with `ASPNETCORE_ENVIRONMENT=Development`, and exposes
+the service and the Traefik dashboard on extra ports. Pass
+`-f compose.yml` alone to bring up the base configuration without that overlay.
+
+## Developing against local report sources
+
+Opening `NeoIPC-Reporting.sln` and pressing F5 runs the **Workspace** launch profile: the
+service starts locally and reads the report sources and the R package from **sibling
+checkouts** rather than from the image. Edits to either show up on the next render, with no
+rebuild.
+
+That profile expects this layout, which is what `appsettings.Development.json` resolves its
+`../../../` paths against:
+
+```
+<some directory>/
+├── NeoIPC-Reporting/      # this repository
+├── Surveillance-Toolkit/  # report sources
+└── neoipcr/               # the R package
+```
+
+Change `Reporting:ReportsSourceDir` / `Reporting:NeoIpcrDevPath` if you keep them elsewhere.
+For DHIS2 authentication and live data, run a DHIS2 instance alongside it and point
+`Reporting:Dhis2BaseUrl` at it through the `Reporting__Dhis2BaseUrl` environment variable —
+the service loads `appsettings.json` and `appsettings.Development.json` only, so a
+`.local.json` overlay would be read by nothing.
 
 ## Build modes (Docker)
 
@@ -95,12 +141,11 @@ for the sibling checkouts, instead of widening the main context.
 
 ```bash
 # Standalone build against a fork's feature branches (dev iteration).
-cd repos/NeoIPC-Reporting
 docker build -f src/NeoIPC.Reporting/Dockerfile \
-  --build-arg REPORTS_REPO=https://github.com/Brar/Surveillance-Toolkit.git \
-  --build-arg REPORTS_BRANCH=PartnerReport \
-  --build-arg NEOIPCR_REPO=Brar/neoipcr \
-  --build-arg NEOIPCR_BRANCH=PartnerReport \
+  --build-arg REPORTS_REPO=https://github.com/<you>/Surveillance-Toolkit.git \
+  --build-arg REPORTS_BRANCH=<your-branch> \
+  --build-arg NEOIPCR_REPO=<you>/neoipcr \
+  --build-arg NEOIPCR_BRANCH=<your-branch> \
   -t neoipc-reporting:dev .
 
 # Pinned tags (the release path): a Surveillance-Toolkit reports-v* tag + a neoipcr tag.
@@ -110,8 +155,7 @@ docker build -f src/NeoIPC.Reporting/Dockerfile \
   --build-arg NEOIPCR_SOURCE=github-tag --build-arg NEOIPCR_TAG=v0.0.0.9000 \
   -t neoipc-reporting:v0.2.0 .
 
-# Workspace build (sibling checkouts supplied via named build contexts).
-cd repos/NeoIPC-Reporting
+# Local build from sibling checkouts (supplied via named build contexts).
 docker build -f src/NeoIPC.Reporting/Dockerfile \
   --build-context surveillance-toolkit=../Surveillance-Toolkit \
   --build-context neoipcr=../neoipcr \
@@ -122,16 +166,6 @@ docker build -f src/NeoIPC.Reporting/Dockerfile \
 The matching `Reporting:BuildMode` runtime env is baked into the image
 per `NEOIPCR_SOURCE` mode — `github-branch` and `github-tag` images
 ignore `NEOIPCR_DEV_PATH`; `workspace` images export it as `/neoipcr`.
-
-## Local stack via compose
-
-```bash
-cd repos/NeoIPC-Reporting
-cp .env.sample .env   # if present in your checkout
-docker compose up --build
-```
-
-Brings up Postgres + DHIS2 + this service + Traefik on `localhost:${TRAEFIK_PORT:-8080}`.
 
 ## Deployment expectations
 
@@ -158,3 +192,45 @@ Brings up Postgres + DHIS2 + this service + Traefik on `localhost:${TRAEFIK_PORT
   admin-uploaded reference datasets and validation-exception files.
   These survive container restarts but live with the host operator's
   backup discipline.
+
+## Part of the NeoIPC surveillance system
+
+| Repository | Role |
+|------------|------|
+| [Surveillance-Toolkit](https://github.com/NeoIPC/Surveillance-Toolkit) | The protocol, the case definitions, the DHIS2 metadata and the report sources |
+| [neoipcr](https://github.com/NeoIPC/neoipcr) | R package that reads NeoIPC data out of DHIS2 and computes the surveillance indicators |
+| **NeoIPC-Reporting** | *(this repository)* Renders those reports on demand and serves them over HTTP |
+| [neoipc-app](https://github.com/NeoIPC/neoipc-app) | DHIS2 application through which people request reports and administer reference data |
+
+The report sources and the R package are **not authored here** — they are ingested from the
+two repositories above at image-build time, and Quarto itself is a pinned binary added to
+the image. Report content and R analysis code therefore belong upstream, not in this
+repository.
+
+## Contributing
+
+Issues and pull requests are welcome. The service is pre-alpha and moving quickly, so it is
+worth raising an issue before a larger change.
+
+Note the split above before opening a pull request: a change to what a report *says* or how
+a number is *computed* belongs in Surveillance-Toolkit or neoipcr, and reaches this service
+through a version bump in [`pinned-sources.yml`](pinned-sources.yml). What belongs here is
+the service around them — the API surface, authentication and authorization, the render
+pipeline, logging and packaging.
+
+Translations of the NeoIPC protocol, report text and surveillance vocabulary are managed on
+[Weblate](https://hosted.weblate.org/projects/neoipc/); contributions in any language are
+welcome and need no git knowledge.
+
+## Licensing
+
+MIT — see [LICENSE](LICENSE).
+
+The report sources and the R package this service renders are separate products with their
+own licensing; see [Surveillance-Toolkit](https://github.com/NeoIPC/Surveillance-Toolkit),
+whose infectious-agent and antibiotics lists carry stricter, upstream-dictated terms.
+
+## Funding
+
+The NeoIPC project has received funding from the European Union's Horizon 2020 research and
+innovation programme under grant agreement No 965328.

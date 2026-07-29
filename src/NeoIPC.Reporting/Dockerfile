@@ -527,4 +527,7 @@ RUN dotnet publish "./NeoIPC.Reporting.csproj" \
 FROM final-base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
+# MIT requires the copyright and permission notice to accompany every copy of the
+# software; a published image is a copy, so ship the licence inside it.
+COPY LICENSE /app/LICENSE
 ENTRYPOINT ["dotnet", "NeoIPC.Reporting.dll"]

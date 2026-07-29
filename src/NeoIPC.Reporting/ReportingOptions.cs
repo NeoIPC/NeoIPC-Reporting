@@ -48,7 +48,7 @@ public sealed class ReportingOptions
     /// non-default value should only ever come from a trusted deployment
     /// configuration.
     /// </remarks>
-    public string Dhis2BaseUrl { get; set; } = "http://dhis2:8080";
+    public string Dhis2BaseUrl { get; set; } = "http://dhis2-backend:8080";
 
     /// <summary>
     /// Selects the source-acquisition mode at build time. Used at

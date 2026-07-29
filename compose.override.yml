@@ -5,6 +5,17 @@ services:
         BUILD_CONFIGURATION: Debug
     environment:
       ASPNETCORE_ENVIRONMENT: Development
+      # Development mode loads appsettings.Development.json, which points the
+      # report sources at a sibling checkout for the local (non-container) launch
+      # profile. That path does not exist in the image, so the warmup service
+      # throws DirectoryNotFoundException, the host never starts, and the
+      # container crash-loops. Restore the in-image location here; an environment
+      # variable outranks the JSON file.
+      #
+      # Only ReportsSourceDir needs this. NeoIpcrDevPath is read solely when
+      # BuildMode is Workspace, and compose builds without NEOIPCR_SOURCE, so the
+      # image bakes BuildMode=GithubBranch and ignores it.
+      Reporting__ReportsSourceDir: /toolkit/reports
     ports:
       - "8082:8080"
     cap_add:

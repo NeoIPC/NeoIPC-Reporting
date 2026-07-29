@@ -10,7 +10,6 @@ services:
     volumes:
       - postgres:/var/lib/postgresql/data
       - ./init-scripts:/docker-entrypoint-initdb.d:ro
-      - ./config/postgresql/conf.d:/etc/postgresql/conf.d:ro
       - type: tmpfs
         target: /var/run/postgresql
       - type: tmpfs

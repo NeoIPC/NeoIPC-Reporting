@@ -426,3 +426,9 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# Rendered preview of README.md and its sidecar asset directory. Nothing
+# consumes these — the README is published as Markdown — but a renderer drops
+# them next to the source, where a `git add -A` would otherwise sweep them in.
+/README.html
+/README_files/

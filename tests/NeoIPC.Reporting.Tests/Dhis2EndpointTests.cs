@@ -7,10 +7,10 @@ namespace NeoIPC.Reporting.Tests;
 [Category("Unit")]
 public class Dhis2EndpointTests
 {
-    [TestCase("http://dhis2:8080",        "http",  "dhis2",          8080, "/",      "/api")]
-    [TestCase("http://dhis2:8080/",       "http",  "dhis2",          8080, "/",      "/api")]
-    [TestCase("http://dhis2:8080/dhis",   "http",  "dhis2",          8080, "/dhis",  "/dhis/api")]
-    [TestCase("https://example.org/x/y/", "https", "example.org",     443, "/x/y/",  "/x/y/api")]
+    [TestCase("http://dhis2-backend:8080",      "http",  "dhis2-backend", 8080, "/",     "/api")]
+    [TestCase("http://dhis2-backend:8080/",     "http",  "dhis2-backend", 8080, "/",     "/api")]
+    [TestCase("http://dhis2-backend:8080/dhis", "http",  "dhis2-backend", 8080, "/dhis", "/dhis/api")]
+    [TestCase("https://example.org/x/y/",       "https", "example.org",    443, "/x/y/", "/x/y/api")]
     public void Build_ParsesAndDerivesApiPath(
         string baseUrl, string scheme, string host, int port, string path, string apiPath)
     {
@@ -27,8 +27,8 @@ public class Dhis2EndpointTests
 
     [TestCase("",                       Description = "empty")]
     [TestCase("not-a-url",              Description = "not absolute")]
-    [TestCase("ftp://dhis2:21",         Description = "non-http scheme")]
-    [TestCase("http://user:pw@dhis2",   Description = "userinfo present")]
+    [TestCase("ftp://dhis2-backend:21", Description = "non-http scheme")]
+    [TestCase("http://user:pw@dhis2-backend", Description = "userinfo present")]
     [TestCase("http://localhost:8080",  Description = "loopback hostname")]
     [TestCase("http://127.0.0.1:8080",  Description = "loopback IP")]
     [TestCase("http://0.0.0.0:8080",    Description = "unspecified IP")]

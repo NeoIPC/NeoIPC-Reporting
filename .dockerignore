@@ -21,7 +21,9 @@
 **/obj
 **/secrets.dev.yaml
 **/values.dev.yaml
-LICENSE
+# LICENSE is deliberately NOT ignored: the final stage copies it into the image,
+# because MIT requires the permission notice to accompany every copy of the
+# software and a published image is a copy.
 README.md
 !**/.gitignore
 !.git/HEAD
