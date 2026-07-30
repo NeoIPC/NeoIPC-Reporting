@@ -99,7 +99,11 @@ jobs:
           # indistinguishable from a healthy checkout, on exactly the defect it exists to catch.
           $checked = @($rows | Where-Object { -not $_.IsBinary })
           if ($checked.Count -eq 0) {
-            Write-Output '::error::Cannot check text-file hygiene: no tracked text files found, so nothing was inspected.'
+            # Two states reach here and they need different fixes, so the message must not name only one:
+            # the repository tracks nothing at all, or it tracks files and git reports every one of them
+            # binary — which a .gitattributes regression produces, and which is the more likely and the
+            # more misleading, since the checkout looks entirely normal.
+            Write-Output '::error::Cannot check text-file hygiene: nothing was inspected. Either no paths are tracked, or git reports every tracked path as binary — check .gitattributes before assuming the checkout is empty.'
             exit 1
           }
           Write-Output "Text-file hygiene OK: $($checked.Count) file(s)."
