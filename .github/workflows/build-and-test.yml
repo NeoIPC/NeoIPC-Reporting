@@ -94,7 +94,15 @@ jobs:
             Write-Output "Expected LF line endings and UTF-8 without a BOM. See .gitattributes and .editorconfig."
             exit 1
           }
-          Write-Output "Text-file hygiene OK: $(@($rows | Where-Object { -not $_.IsBinary }).Count) file(s)."
+          # A run that inspected nothing must not report success. With no rows, every check above passes
+          # vacuously, so this job would print OK and exit 0 having looked at nothing — a result
+          # indistinguishable from a healthy checkout, on exactly the defect it exists to catch.
+          $checked = @($rows | Where-Object { -not $_.IsBinary })
+          if ($checked.Count -eq 0) {
+            Write-Output '::error::Cannot check text-file hygiene: no tracked text files found, so nothing was inspected.'
+            exit 1
+          }
+          Write-Output "Text-file hygiene OK: $($checked.Count) file(s)."
 
   unit:
     # Reusable unit + generator test job, shared with release.yml so a released image runs the same tests.
