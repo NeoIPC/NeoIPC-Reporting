@@ -55,8 +55,9 @@ jobs:
             if ($cols.Count -lt 2) { continue }
             $attr = if ($cols.Count -gt 2) { ($cols[2..($cols.Count - 1)] -join ' ') -replace '^attr/', '' } else { '' }
             # Only the ATTRIBUTE exempts a path. The i/ and w/ columns report what git DETECTED, and folding
-            # them in here would let a single NUL byte skip the line-ending, BOM and UTF-8 checks at once —
-            # so a CRLF UTF-16 file would commit silently, which is the corruption this job exists to catch.
+            # them in here would let one stray byte skip the line-ending, BOM and UTF-8 checks at once — a
+            # single NUL or even a lone CR makes git report -text — so a CRLF UTF-16 file would commit
+            # silently, which is the corruption this job exists to catch.
             [pscustomobject]@{
               Index = $cols[0]; Worktree = $cols[1]; File = $parts[1]
               IsBinary = ($attr -match '(^|\s)(-text|binary)(\s|$)')
@@ -68,7 +69,7 @@ jobs:
             # Declared text but detected binary: report it, because nothing else can see this defect — git
             # prints -text rather than crlf, a NUL is valid UTF-8, and UTF-16 carries no UTF-8 BOM.
             if ($row.LooksBinary) {
-              $failures += "$($row.File): declared text but git detects binary content (a NUL byte) - probably mis-encoded; declare it '-text' if it really is binary"
+              $failures += "$($row.File): declared text but git detects binary content (a NUL byte or stray CR) - probably mis-encoded; declare it '-text' if it really is binary"
               continue
             }
             if ($row.Worktree -in @('w/crlf', 'w/mixed')) {
