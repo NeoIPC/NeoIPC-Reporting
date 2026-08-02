@@ -238,6 +238,12 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         r-cran-rmarkdown \
         r-cran-knitr \
         r-cran-tidyverse \
+        # glue is named even though tidyverse pulls it in, because it does so only TRANSITIVELY: glue is
+        # not a tidyverse member package, it is a dependency of several of them. The reports call it
+        # directly and depend on a specific capability of it — glue_safe(), which is what keeps a
+        # translated string from being evaluated as R at render time — so leaving it to arrive by
+        # accident of someone else's dependency graph is the wrong footing for a security property.
+        r-cran-glue \
         r-cran-smplot2 \
         r-cran-scales \
         r-cran-patchwork \
