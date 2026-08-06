@@ -44,16 +44,18 @@ public class ReferenceReportRScriptArgumentBuilderTests
     }
 
     [Test]
-    public void HospitalFilter_IsNotForwarded()
+    public void DepartmentFilter_JoinedByComma_UnderCamelCaseFlag()
     {
-        // Hospital filtering is a Quarto render-time concern; the data-fetch
-        // R script doesn't accept --hospitals.
+        // The JSON export narrows the cohort by department exactly as a
+        // rendered report does. Dropping it here would leave the two paths
+        // disagreeing about which departments the dataset covers, and only
+        // the export would be wrong.
         var args = Build(new ReferenceReportRenderParameters
         {
-            HospitalFilter = ["U-001", "U-002"],
+            DepartmentFilter = ["U-001", "U-002"],
         });
 
-        Assert.That(args, Is.Empty);
+        Assert.That(args, Is.EqualTo(new[] { "--departmentFilter", "U-001,U-002" }));
     }
 
     [Test]

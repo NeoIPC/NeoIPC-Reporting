@@ -10,8 +10,6 @@ namespace NeoIPC.Reporting;
 /// <remarks>
 /// Flag names match the script's <c>long_map</c> / <c>short_map</c>
 /// (camelCase: <c>--reportingPeriodFrom</c>, <c>--birthWeightFrom</c>, …).
-/// Hospital filtering is intentionally not forwarded — it is a Quarto
-/// render-time concern, and the data-fetch script does not accept it.
 /// The QMD's <c>testUnitFilter</c> / <c>defaultPatientFilter</c> map to
 /// the script's <c>--includeTestUnits</c> / <c>--includeNonCorePatients</c>
 /// presence flags with inverted semantics: the QMD bool is "apply the
@@ -63,6 +61,12 @@ public static class ReferenceReportRScriptArgumentBuilder
         {
             yield return "--reportingCountries";
             yield return string.Join(",", p.ReportingCountries);
+        }
+
+        if (p.DepartmentFilter is { Length: > 0 })
+        {
+            yield return "--departmentFilter";
+            yield return string.Join(",", p.DepartmentFilter);
         }
 
         if (p.TestUnitFilter == false)

@@ -49,8 +49,8 @@ public sealed partial record ReferenceReportApiParameters : ReportRequestBase
     [RenderParameter("reportingCountries")]
     public string[]? CountryFilter { get; init; }
 
-    [RenderParameter("hospitalFilter")]
-    public string[]? HospitalFilter { get; init; }
+    [RenderParameter("departmentFilter")]
+    public string[]? DepartmentFilter { get; init; }
 
     [RenderParameter("testUnitFilter")]
     public bool? TestUnitFilter { get; init; }

@@ -50,7 +50,7 @@ class ReferenceReport
         [FromQuery] ushort? gestationalAgeFrom,
         [FromQuery] ushort? gestationalAgeTo,
         [FromQuery] string[] countryFilter,
-        [FromQuery] string[] hospitalFilter,
+        [FromQuery] string[] departmentFilter,
         [FromQuery] bool? testUnitFilter,
         [FromQuery] bool? defaultPatientFilter,
         [FromQuery] ushort? sparseDataThreshold,
@@ -113,7 +113,7 @@ class ReferenceReport
             (nameof(referenceDataId), referenceDataId),
             (nameof(locale), locale))
             ?? InputValidation.RejectUnsafeStringArray(nameof(countryFilter), countryFilter)
-            ?? InputValidation.RejectUnsafeStringArray(nameof(hospitalFilter), hospitalFilter);
+            ?? InputValidation.RejectUnsafeStringArray(nameof(departmentFilter), departmentFilter);
         if (unsafeInput is not null) return unsafeInput;
 
         if (!ConfidenceIntervalConverter.TryParse(confidenceIntervals, out var confidenceIntervalMode))
@@ -178,7 +178,7 @@ class ReferenceReport
             GestationalAgeFrom = gestationalAgeFrom,
             GestationalAgeTo = gestationalAgeTo,
             CountryFilter = countryFilter.Length > 0 ? countryFilter : null,
-            HospitalFilter = hospitalFilter.Length > 0 ? hospitalFilter : null,
+            DepartmentFilter = departmentFilter.Length > 0 ? departmentFilter : null,
             TestUnitFilter = testUnitFilter,
             DefaultPatientFilter = defaultPatientFilter,
             SparseDataThreshold = sparseDataThreshold,
