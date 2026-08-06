@@ -130,7 +130,7 @@ class ReferenceReport
                 reportingPeriodFrom, reportingPeriodTo,
                 birthWeightFrom, birthWeightTo,
                 gestationalAgeFrom, gestationalAgeTo,
-                countryFilter);
+                countryFilter, departmentFilter);
             if (rejected.Count > 0)
                 return ProblemDetailsHelper.BadRequest(
                     ProblemCodes.MixedModeNotAllowed,
@@ -223,7 +223,7 @@ class ReferenceReport
         DateOnly? reportingPeriodFrom, DateOnly? reportingPeriodTo,
         ushort? birthWeightFrom, ushort? birthWeightTo,
         ushort? gestationalAgeFrom, ushort? gestationalAgeTo,
-        string[] countryFilter)
+        string[] countryFilter, string[] departmentFilter)
     {
         var rejected = new List<string>();
         if (reportingPeriodFrom is not null) rejected.Add("reportingPeriodFrom");
@@ -233,6 +233,13 @@ class ReferenceReport
         if (gestationalAgeFrom is not null) rejected.Add("gestationalAgeFrom");
         if (gestationalAgeTo is not null) rejected.Add("gestationalAgeTo");
         if (countryFilter.Length > 0) rejected.Add("countryFilter");
+        // Every live-fetch filter belongs here. departmentFilter reaches
+        // get_dataset_options, which a stored-dataset render never calls, so
+        // omitting it would accept the request and answer with a report over
+        // every department in the dataset — while the same request carrying
+        // countryFilter is refused. Silently ignoring one and rejecting the
+        // other is the worse half of that pair.
+        if (departmentFilter.Length > 0) rejected.Add("departmentFilter");
         return rejected;
     }
 
@@ -281,6 +288,15 @@ class ReferenceReport
         var rScriptSupported = RScriptReferenceReportProducer.SupportedLanguageDictionary.Keys
             .ToHashSet(StringComparer.Ordinal);
 
+        // The data producer fetches from DHIS2; it has no way to read a stored
+        // dataset, because Generate-ReferenceData.R accepts no argument naming
+        // one. Selecting it for a request that named a stored dataset would
+        // answer a different question than the one asked — live data, narrowed
+        // by whatever filters the caller supplied — under a 200. Excluding it
+        // here leaves such a request with no acceptable producer, which the
+        // caller learns as a 415 rather than as a plausible wrong dataset.
+        var hasStoredDataMode = !string.IsNullOrEmpty(apiParameters.ReferenceDataId);
+
         // Format has priority over language; exact-match passes first, then subset.
         foreach (var acceptHeader in apiParameters.AcceptHeaders)
         {
@@ -294,7 +310,8 @@ class ReferenceReport
                 if (gen is not null) return (gen, null);
             }
 
-            if (RScriptReportProducer.SupportedMediaTypeHeaderValues.ContainsKey(mediaType))
+            if (!hasStoredDataMode &&
+                RScriptReportProducer.SupportedMediaTypeHeaderValues.ContainsKey(mediaType))
             {
                 var (gen, problem) = TryRScript(mediaType, apiParameters, renderParameters,
                     rScriptSupported, options, environment, loggerFactory);
@@ -316,7 +333,8 @@ class ReferenceReport
                 if (gen is not null) return (gen, null);
             }
 
-            if (RScriptReportProducer.SupportedMediaTypeHeaderValues.TryGetValue(mediaType,
+            if (!hasStoredDataMode &&
+                RScriptReportProducer.SupportedMediaTypeHeaderValues.TryGetValue(mediaType,
                     out var rScriptValue) &&
                 rScriptValue.IsSubsetOf(acceptHeader))
             {
