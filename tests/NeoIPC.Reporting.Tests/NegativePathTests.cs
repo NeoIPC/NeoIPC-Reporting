@@ -91,6 +91,18 @@ public class NegativePathTests
         return req;
     }
 
+    HttpRequestMessage Post(string path, string body)
+    {
+        var req = new HttpRequestMessage(HttpMethod.Post, path)
+        {
+            Content = new StringContent(body),
+        };
+        req.Headers.Add("Cookie", "JSESSIONID=test-placeholder-session-id");
+        req.Headers.Add("Accept", "application/pdf");
+        req.Headers.Add("Accept-Language", "en");
+        return req;
+    }
+
     [Test]
     public async Task ReferenceReport_MissingAcceptLanguage_Returns406()
     {
@@ -186,20 +198,41 @@ public class NegativePathTests
     }
 
     [Test]
-    public async Task PartnerReport_MissingUnitCodes_Returns400()
+    public async Task PartnerReportOnline_MissingUnitCodes_Returns400()
     {
-        // POST with a body but no unitCodes query param. The body has to
-        // be present (otherwise it short-circuits to "Missing partnerData
-        // body" first); use a tiny placeholder.
-        var req = new HttpRequestMessage(HttpMethod.Post, "/partner-report")
-        {
-            Content = new StringContent("{}"),
-        };
-        req.Headers.Add("Cookie", "JSESSIONID=test-placeholder-session-id");
-        req.Headers.Add("Accept", "application/pdf");
-        req.Headers.Add("Accept-Language", "en");
-        var response = await _http!.SendAsync(req);
+        // Online mode names the department to fetch, so it is the only mode
+        // that requires unitCodes — see the dataFile counterpart below. The
+        // check runs ahead of authorization, so it stays reachable with a
+        // session the container cannot validate.
+        var response = await _http!.SendAsync(Get("/partner-report"));
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+
+        // Name the guard rather than trusting the status. Several checks
+        // ahead of this one also answer 400, so a status-only assertion
+        // passes whichever fired — and would stay green if this guard
+        // became unreachable, which is exactly how it broke before.
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.That(body, Does.Contain(ProblemCodes.MissingUnitCodes));
+    }
+
+    [Test]
+    public async Task PartnerReportDataFile_MissingUnitCodes_IsAllowed()
+    {
+        // The uploaded dataset IS the department, so dataFile mode must not
+        // demand unitCodes — and the requirement is skipped rather than
+        // satisfied, which no test would notice if it were reinstated.
+        //
+        // Asserted as the absence of that rejection, not as a positive
+        // status: the request goes on to authorization, which this
+        // container cannot satisfy, so what it finally answers says nothing
+        // about this guard. Not-400 is still provable — the body is present,
+        // so the missing-body guard cannot fire either, and the inputs
+        // carry nothing the YAML-safety check rejects.
+        var response = await _http!.SendAsync(Post("/partner-report", "{}"));
+
+        Assert.That(response.StatusCode, Is.Not.EqualTo(HttpStatusCode.BadRequest));
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.That(body, Does.Not.Contain(ProblemCodes.MissingUnitCodes));
     }
 
     [Test]
