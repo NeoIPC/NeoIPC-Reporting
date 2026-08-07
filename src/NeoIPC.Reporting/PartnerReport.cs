@@ -278,10 +278,13 @@ class PartnerReport
         // explicit ?locale=) let producer selection proceed — the JSON path
         // defaults its process locale (RScriptReportProducer.DefaultLocale).
         // Refuse up front only when no locale is available AND the request can
-        // be satisfied only by a rendered output.
+        // be satisfied only by a rendered output. In dataFile mode the dataset is
+        // the request body, so there is no JSON output to fall back on and the
+        // rendered formats are the only ones that can serve the request.
         if (apiParameters.AcceptLanguageHeaders.IsDefaultOrEmpty
             && string.IsNullOrWhiteSpace(apiParameters.Locale)
-            && OutputNegotiation.OnlyRenderedOutputsAreAcceptable(apiParameters.AcceptHeaders))
+            && OutputNegotiation.OnlyRenderedOutputsAreAcceptable(
+                apiParameters.AcceptHeaders, partnerDataBody is null))
             return Results.StatusCode(406);
 
         // API-boundary YAML safety; see ReferenceReport for the rationale.
@@ -299,6 +302,19 @@ class PartnerReport
                 ProblemCodes.MissingUnitCodes,
                 "Missing unitCodes",
                 "The 'unitCodes' query parameter is required.");
+
+        // …and refuse it outright when the body supplies the dataset, rather than
+        // ignoring it. The report's subtitle is front matter, evaluated before the
+        // setup chunk that reads the real department out of the uploaded dataset's
+        // metadata, so a mismatched unitCodes cannot be corrected there: it would
+        // title a document with a department the document does not contain, and the
+        // wrong label travels with the exported PDF.
+        if (partnerDataBody is not null && apiParameters.UnitCodes is { Length: > 0 })
+            return ProblemDetailsHelper.BadRequest(
+                ProblemCodes.MixedModeNotAllowed,
+                "Mixed mode is not allowed",
+                "When partner data is uploaded, the dataset fixes the department and "
+                + "'unitCodes' must not be specified.");
 
         // Authorization runs after request-shape validation so the shape
         // checks above stay reachable without a valid DHIS2 session.
@@ -330,7 +346,18 @@ class PartnerReport
             apiParameters, renderParameters, partnerDataBody is not null,
             quartoLanguages, options, registry, environment, loggerFactory);
         if (problem is not null) return problem;
-        if (generator is null) return Results.StatusCode(415);
+        // See ReferenceReport: nothing the caller accepts can be produced, which is
+        // proactive-negotiation failure rather than a request-payload media-type
+        // problem, and it carries a code so the cause is legible.
+        if (generator is null)
+            return ProblemDetailsHelper.NotAcceptable(
+                ProblemCodes.NoAcceptableOutput,
+                partnerDataBody is not null
+                    ? "No output matching this request's Accept and Accept-Language can be produced. "
+                      + "An uploaded partner dataset renders to text/html or application/pdf only; "
+                      + "the application/json dataset is produced by the online (GET) path."
+                    : "No output matching this request's Accept and Accept-Language can be produced. "
+                      + "This report serves text/html, application/pdf and application/json.");
 
         await using (generator)
         {

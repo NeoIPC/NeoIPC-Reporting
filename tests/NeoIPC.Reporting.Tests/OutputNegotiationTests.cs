@@ -44,12 +44,34 @@ public class OutputNegotiationTests
     public void OnlyRenderedOutputsAreAcceptable_NoSupportedOutput_IsFalse()
     {
         // An unsupported Accept type is neither a rendered nor a data output: not
-        // a locale problem (that is a 415 media-type problem decided in producer
-        // selection), so this must not report a rendered-only request.
+        // a locale problem (that is decided in producer selection, which refuses
+        // with 406 + a code), so this must not report a rendered-only request.
         Assert.Multiple(() =>
         {
             Assert.That(OutputNegotiation.OnlyRenderedOutputsAreAcceptable(Accept("application/xml")), Is.False);
             Assert.That(OutputNegotiation.OnlyRenderedOutputsAreAcceptable([]), Is.False);
+        });
+    }
+
+    [Test]
+    public void OnlyRenderedOutputsAreAcceptable_DataOutputUnavailable_FallsBackToRenderedOnly()
+    {
+        // Both handlers skip the JSON producer when the dataset is supplied rather
+        // than fetched (a stored referenceDataId, an uploaded partner-data body).
+        // The JSON output therefore cannot serve those requests, so a caller who
+        // accepts it and offers no locale must still be refused — otherwise the
+        // request slips past this gate and lands on producer selection, which
+        // refuses it for a reason that is not the real one.
+        Assert.Multiple(() =>
+        {
+            Assert.That(OutputNegotiation.OnlyRenderedOutputsAreAcceptable(
+                Accept("*/*"), dataOutputAvailable: false), Is.True);
+            Assert.That(OutputNegotiation.OnlyRenderedOutputsAreAcceptable(
+                Accept("application/pdf", "application/json"), dataOutputAvailable: false), Is.True);
+            // JSON alone still names no producible output, so this is a
+            // media-type refusal rather than a locale one.
+            Assert.That(OutputNegotiation.OnlyRenderedOutputsAreAcceptable(
+                Accept("application/json"), dataOutputAvailable: false), Is.False);
         });
     }
 

@@ -50,8 +50,19 @@ public static class OutputNegotiation
     /// unsupported-media-type (415) case decided in producer selection, not a
     /// locale refusal.
     /// </summary>
+    /// <param name="acceptHeaders">The request's acceptable media types.</param>
+    /// <param name="dataOutputAvailable">
+    /// Whether the data output can serve <em>this</em> request. Both handlers skip
+    /// the R-script producer when the dataset is given rather than fetched — a
+    /// stored <c>referenceDataId</c>, or an uploaded partner-data body — because it
+    /// would answer from a live DHIS2 fetch instead. Passing <c>true</c> there would
+    /// let a caller offering <c>*&#47;*</c> and no locale past this refusal and into
+    /// producer selection, which then finds nothing and returns a bare 415 for a
+    /// request whose only real problem is the missing locale.
+    /// </param>
     public static bool OnlyRenderedOutputsAreAcceptable(
-        ImmutableArray<MediaTypeHeaderValue> acceptHeaders)
+        ImmutableArray<MediaTypeHeaderValue> acceptHeaders,
+        bool dataOutputAvailable = true)
     {
         var rendered = false;
         var data = false;
@@ -63,7 +74,8 @@ public static class OutputNegotiation
             if (header.Quality is <= 0) continue;
             var mediaType = header.MediaType.ToString();
             if (QuartoReportProducer.IsMediaTypeSupported(mediaType)) rendered = true;
-            if (RScriptReportProducer.IsMediaTypeSupported(mediaType)) data = true;
+            if (dataOutputAvailable && RScriptReportProducer.IsMediaTypeSupported(mediaType))
+                data = true;
         }
         return rendered && !data;
     }

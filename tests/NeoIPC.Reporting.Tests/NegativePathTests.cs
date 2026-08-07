@@ -236,6 +236,54 @@ public class NegativePathTests
     }
 
     [Test]
+    public async Task PartnerReportDataFile_WithUnitCodes_Returns400()
+    {
+        // The uploaded dataset fixes the department, and the subtitle is front
+        // matter — evaluated before the setup chunk that reads the real
+        // department out of the dataset's metadata — so a unitCodes that
+        // disagrees cannot be corrected during the render. It would title the
+        // document with a department the document does not contain, so it is
+        // refused rather than ignored.
+        var req = new HttpRequestMessage(
+            HttpMethod.Post, "/partner-report?unitCodes=DE_TEST_TEST")
+        {
+            Content = new StringContent("{}"),
+        };
+        req.Headers.Add("Cookie", "JSESSIONID=test-placeholder-session-id");
+        req.Headers.Add("Accept", "application/pdf");
+        req.Headers.Add("Accept-Language", "en");
+
+        var response = await _http!.SendAsync(req);
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.That(body, Does.Contain(ProblemCodes.MixedModeNotAllowed));
+    }
+
+    [Test]
+    public async Task ReferenceReport_StoredDataset_WildcardAcceptWithoutLocale_Returns406()
+    {
+        // With a stored dataset there is no JSON output to fall back on — the
+        // R-script producer is skipped, because it would answer from a live
+        // DHIS2 fetch rather than from the stored dataset. So a caller offering
+        // */* and no locale can be served only by a rendered output, and the
+        // real blocker is the missing locale. Without this the request slips
+        // past the locale gate (*/* "accepts" a JSON output that cannot be
+        // produced) and is refused later for the wrong reason.
+        //
+        // The id need not exist: this gate runs before the dataset is looked up.
+        var req = new HttpRequestMessage(
+            HttpMethod.Get, "/reference-report?referenceDataId=00000000000000000000000000000000");
+        req.Headers.Add("Cookie", "JSESSIONID=test-placeholder-session-id");
+        req.Headers.Add("Accept", "*/*");
+        // No Accept-Language header, and no ?locale=.
+
+        var response = await _http!.SendAsync(req);
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotAcceptable));
+    }
+
+    [Test]
     public async Task AdminEndpoint_WithoutAuth_Returns401Or403()
     {
         // The /admin/* group has .RequireAuthorization("NeoIpcAdmin").

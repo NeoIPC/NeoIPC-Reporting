@@ -22,6 +22,7 @@ public static class ProblemCodes
     public const string UnsupportedLocale = "unsupported-locale";
     public const string MixedModeNotAllowed = "mixed-mode-not-allowed";
     public const string InvalidParameterValue = "invalid-parameter-value";
+    public const string NoAcceptableOutput = "no-acceptable-output";
 
     // Authorization
     public const string InsufficientAuthority = "insufficient-authority";

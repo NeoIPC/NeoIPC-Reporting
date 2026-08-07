@@ -27,6 +27,15 @@ public static class ProblemDetailsHelper
     public static IResult UnsupportedMediaType(string code, string detail) =>
         Problem(code, "Unsupported media type", detail, StatusCodes.Status415UnsupportedMediaType);
 
+    /// <summary>
+    /// Refuses a request whose proactive-negotiation headers (<c>Accept</c>,
+    /// <c>Accept-Language</c>) admit no representation this resource can produce
+    /// (RFC 9110 §15.5.7). Distinct from <see cref="UnsupportedMediaType"/>, which
+    /// is about the media type of the <em>request</em> payload (§15.5.16).
+    /// </summary>
+    public static IResult NotAcceptable(string code, string detail) =>
+        Problem(code, "Not acceptable", detail, StatusCodes.Status406NotAcceptable);
+
     static IResult Problem(string code, string title, string detail, int status) =>
         Results.Problem(new ProblemDetails
         {

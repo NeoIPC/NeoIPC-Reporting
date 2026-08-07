@@ -92,6 +92,8 @@ class ReferenceReport
         if (accept.IsDefaultOrEmpty)
             return Results.StatusCode(406);
 
+        var hasStoredDataMode = !string.IsNullOrEmpty(referenceDataId);
+
         // A rendering locale is mandatory only for the rendered (html/pdf)
         // outputs. The application/json data output is the raw neoipcr dataset
         // (codes), which is locale-independent, so it must not be gated on a
@@ -99,10 +101,12 @@ class ReferenceReport
         // explicit ?locale=) let producer selection proceed — the JSON path
         // defaults its process locale (RScriptReportProducer.DefaultLocale).
         // Refuse up front only when no locale is available AND the request can
-        // be satisfied only by a rendered output.
+        // be satisfied only by a rendered output. In stored-dataset mode there
+        // is no JSON output to fall back on, so the rendered formats are the
+        // only ones that can serve the request.
         if (acceptLang.IsDefaultOrEmpty
             && string.IsNullOrWhiteSpace(locale)
-            && OutputNegotiation.OnlyRenderedOutputsAreAcceptable(accept))
+            && OutputNegotiation.OnlyRenderedOutputsAreAcceptable(accept, !hasStoredDataMode))
             return Results.StatusCode(406);
 
         // API-boundary YAML safety: every string-typed param flows into a
@@ -121,8 +125,6 @@ class ReferenceReport
                 ProblemCodes.InvalidConfidenceIntervals,
                 "Invalid confidenceIntervals",
                 "The 'confidenceIntervals' parameter must be one of: all, rate, none.");
-
-        var hasStoredDataMode = !string.IsNullOrEmpty(referenceDataId);
 
         if (hasStoredDataMode)
         {
@@ -209,7 +211,21 @@ class ReferenceReport
             apiParameters, renderParameters, quartoLanguages,
             options, registry, environment, loggerFactory);
         if (problem is not null) return problem;
-        if (generator is null) return Results.StatusCode(415);
+        // Nothing the caller accepts can be produced: either no supported media
+        // type was offered, or a rendered one was but no supported language. That
+        // is proactive-negotiation failure (RFC 9110 §15.5.7), not a request-payload
+        // media-type problem — and it carries a code, because a caller otherwise
+        // cannot tell "this resource serves no JSON for a stored dataset" from
+        // "this resource serves no JSON at all".
+        if (generator is null)
+            return ProblemDetailsHelper.NotAcceptable(
+                ProblemCodes.NoAcceptableOutput,
+                hasStoredDataMode
+                    ? "No output matching this request's Accept and Accept-Language can be produced. "
+                      + "A stored reference dataset renders to text/html or application/pdf only; "
+                      + "the application/json dataset is available without 'referenceDataId'."
+                    : "No output matching this request's Accept and Accept-Language can be produced. "
+                      + "This report serves text/html, application/pdf and application/json.");
 
         await using (generator)
         {
