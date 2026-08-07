@@ -174,6 +174,36 @@ public class NegativePathTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
     }
 
+    // Each live-fetch parameter needs its own case: asserting the status for one of
+    // them leaves every other member of the rejected set untested, so dropping one
+    // would keep the suite green while the endpoint answered 200 over the whole
+    // stored dataset. The body is checked for the parameter's own name, because a
+    // 400 alone is also what an id-format or confidence-interval failure returns.
+    [TestCase("reportingPeriodFrom=2024-01-01", "reportingPeriodFrom")]
+    [TestCase("reportingPeriodTo=2024-12-31", "reportingPeriodTo")]
+    [TestCase("birthWeightFrom=500", "birthWeightFrom")]
+    [TestCase("birthWeightTo=2500", "birthWeightTo")]
+    [TestCase("gestationalAgeFrom=24", "gestationalAgeFrom")]
+    [TestCase("gestationalAgeTo=32", "gestationalAgeTo")]
+    [TestCase("countryFilter=AT", "countryFilter")]
+    [TestCase("departmentFilter=AT_TEST_TEST", "departmentFilter")]
+    [TestCase("testUnitFilter=false", "testUnitFilter")]
+    [TestCase("defaultPatientFilter=false", "defaultPatientFilter")]
+    public async Task ReferenceReport_StoredDataset_RejectsEveryLiveFetchParam(
+        string query, string expectedName)
+    {
+        var response = await _http!.SendAsync(Get(
+            $"/reference-report?referenceDataId=any&{query}"));
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+            Assert.That(body, Does.Contain(ProblemCodes.MixedModeNotAllowed));
+            Assert.That(body, Does.Contain(expectedName));
+        });
+    }
+
     [Test]
     public async Task ReferenceReport_AdHocMode_WithoutAuth_Returns403()
     {
@@ -257,7 +287,9 @@ public class NegativePathTests
 
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
         var body = await response.Content.ReadAsStringAsync();
-        Assert.That(body, Does.Contain(ProblemCodes.MixedModeNotAllowed));
+        // Its own code, not the stored-reference one: a consumer maps each to a
+        // different message, so sharing a code would name the wrong cause.
+        Assert.That(body, Does.Contain(ProblemCodes.UploadedDataFixesScope));
     }
 
     [Test]
@@ -281,6 +313,30 @@ public class NegativePathTests
         var response = await _http!.SendAsync(req);
 
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotAcceptable));
+    }
+
+    [Test]
+    public async Task ReferenceReport_StoredDataset_NoProducibleOutput_CarriesItsCode()
+    {
+        // The argument for 406-with-a-code over the bodiless refusal it replaced is
+        // precisely that a caller can now tell "no JSON for a stored dataset" from
+        // "no JSON at all" — so the status alone is the part that proves nothing.
+        var req = new HttpRequestMessage(
+            HttpMethod.Get, "/reference-report?referenceDataId=00000000000000000000000000000000");
+        req.Headers.Add("Cookie", "JSESSIONID=test-placeholder-session-id");
+        req.Headers.Add("Accept", "application/json");
+        req.Headers.Add("Accept-Language", "en");
+
+        var response = await _http!.SendAsync(req);
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotAcceptable));
+            Assert.That(body, Does.Contain(ProblemCodes.NoAcceptableOutput));
+            Assert.That(body, Does.Contain("referenceDataId"),
+                "the detail must name what to drop, not merely refuse");
+        });
     }
 
     [Test]

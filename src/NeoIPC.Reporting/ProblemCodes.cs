@@ -21,6 +21,13 @@ public static class ProblemCodes
     public const string ReferenceDatasetNotFound = "reference-dataset-not-found";
     public const string UnsupportedLocale = "unsupported-locale";
     public const string MixedModeNotAllowed = "mixed-mode-not-allowed";
+    /// <summary>
+    /// An uploaded partner dataset was combined with parameters only a live fetch
+    /// can honour. Distinct from <see cref="MixedModeNotAllowed"/>, which is about a
+    /// stored <em>reference</em> dataset: a consumer maps each code to its own
+    /// message, so one code covering both would name the wrong cause in the app.
+    /// </summary>
+    public const string UploadedDataFixesScope = "uploaded-data-fixes-scope";
     public const string InvalidParameterValue = "invalid-parameter-value";
     public const string NoAcceptableOutput = "no-acceptable-output";
 

@@ -132,7 +132,8 @@ class ReferenceReport
                 reportingPeriodFrom, reportingPeriodTo,
                 birthWeightFrom, birthWeightTo,
                 gestationalAgeFrom, gestationalAgeTo,
-                countryFilter, departmentFilter);
+                countryFilter, departmentFilter,
+                testUnitFilter, defaultPatientFilter);
             if (rejected.Count > 0)
                 return ProblemDetailsHelper.BadRequest(
                     ProblemCodes.MixedModeNotAllowed,
@@ -235,11 +236,20 @@ class ReferenceReport
         }
     }
 
+    // Every parameter that only a live fetch can honour belongs here, and the test
+    // for membership is where the value is consumed: each of these reaches
+    // get_dataset_options, which a stored-dataset render never calls. Omitting one
+    // accepts the request and answers over the whole stored dataset — a 200
+    // describing a cohort the caller did not ask for — while a sibling parameter in
+    // the same request is refused. Silently ignoring one and rejecting the other is
+    // the worse half of that pair, so the list is kept complete rather than grown
+    // one defect at a time.
     static List<string> CollectLiveFetchParams(
         DateOnly? reportingPeriodFrom, DateOnly? reportingPeriodTo,
         ushort? birthWeightFrom, ushort? birthWeightTo,
         ushort? gestationalAgeFrom, ushort? gestationalAgeTo,
-        string[] countryFilter, string[] departmentFilter)
+        string[] countryFilter, string[] departmentFilter,
+        bool? testUnitFilter, bool? defaultPatientFilter)
     {
         var rejected = new List<string>();
         if (reportingPeriodFrom is not null) rejected.Add("reportingPeriodFrom");
@@ -249,13 +259,9 @@ class ReferenceReport
         if (gestationalAgeFrom is not null) rejected.Add("gestationalAgeFrom");
         if (gestationalAgeTo is not null) rejected.Add("gestationalAgeTo");
         if (countryFilter.Length > 0) rejected.Add("countryFilter");
-        // Every live-fetch filter belongs here. departmentFilter reaches
-        // get_dataset_options, which a stored-dataset render never calls, so
-        // omitting it would accept the request and answer with a report over
-        // every department in the dataset — while the same request carrying
-        // countryFilter is refused. Silently ignoring one and rejecting the
-        // other is the worse half of that pair.
         if (departmentFilter.Length > 0) rejected.Add("departmentFilter");
+        if (testUnitFilter is not null) rejected.Add("testUnitFilter");
+        if (defaultPatientFilter is not null) rejected.Add("defaultPatientFilter");
         return rejected;
     }
 
@@ -309,8 +315,8 @@ class ReferenceReport
         // one. Selecting it for a request that named a stored dataset would
         // answer a different question than the one asked — live data, narrowed
         // by whatever filters the caller supplied — under a 200. Excluding it
-        // here leaves such a request with no acceptable producer, which the
-        // caller learns as a 415 rather than as a plausible wrong dataset.
+        // here leaves such a request with no acceptable producer, which the caller
+        // learns as a coded 406 rather than as a plausible wrong dataset.
         var hasStoredDataMode = !string.IsNullOrEmpty(apiParameters.ReferenceDataId);
 
         // Format has priority over language; exact-match passes first, then subset.

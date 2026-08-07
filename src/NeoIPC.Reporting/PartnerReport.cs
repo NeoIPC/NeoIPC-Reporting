@@ -311,8 +311,8 @@ class PartnerReport
         // wrong label travels with the exported PDF.
         if (partnerDataBody is not null && apiParameters.UnitCodes is { Length: > 0 })
             return ProblemDetailsHelper.BadRequest(
-                ProblemCodes.MixedModeNotAllowed,
-                "Mixed mode is not allowed",
+                ProblemCodes.UploadedDataFixesScope,
+                "The uploaded dataset fixes the department",
                 "When partner data is uploaded, the dataset fixes the department and "
                 + "'unitCodes' must not be specified.");
 

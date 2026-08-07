@@ -46,9 +46,9 @@ public static class OutputNegotiation
     /// output is the raw neoipcr dataset (codes), locale-independent, so the
     /// request is serviceable without a locale (the JSON producer defaults its
     /// locale — see <see cref="RScriptReportProducer.DefaultLocale"/>). Returns
-    /// false too when no supported output is acceptable at all — that is an
-    /// unsupported-media-type (415) case decided in producer selection, not a
-    /// locale refusal.
+    /// false too when no supported output is acceptable at all — producer
+    /// selection then refuses that with a coded 406, so it is not a locale
+    /// refusal and must not be reported as one.
     /// </summary>
     /// <param name="acceptHeaders">The request's acceptable media types.</param>
     /// <param name="dataOutputAvailable">
@@ -57,8 +57,8 @@ public static class OutputNegotiation
     /// stored <c>referenceDataId</c>, or an uploaded partner-data body — because it
     /// would answer from a live DHIS2 fetch instead. Passing <c>true</c> there would
     /// let a caller offering <c>*&#47;*</c> and no locale past this refusal and into
-    /// producer selection, which then finds nothing and returns a bare 415 for a
-    /// request whose only real problem is the missing locale.
+    /// producer selection, which finds nothing and refuses on media type — naming a
+    /// cause that is not the request's real one, the missing locale.
     /// </param>
     public static bool OnlyRenderedOutputsAreAcceptable(
         ImmutableArray<MediaTypeHeaderValue> acceptHeaders,
