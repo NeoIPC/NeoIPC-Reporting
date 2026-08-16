@@ -6,7 +6,7 @@ namespace NeoIPC.Reporting.Resources;
 /// <summary>
 /// Post-processes Quarto's minimal-HTML output into a body-scoped
 /// fragment suitable for inline injection into a containing app
-/// (the new DHIS2 App Platform app at <c>repos/neoipc-app/</c>).
+/// (the NeoIPC DHIS2 App Platform app, <c>neoipc-app</c>).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -41,9 +41,8 @@ namespace NeoIPC.Reporting.Resources;
 /// <para>
 /// The container selector is fixed at <see cref="ContainerSelector"/>
 /// and surfaced to the client via the <see cref="ContentType"/>
-/// response header. The frontend's
-/// <c>repos/neoipc-app/src/render/InlineHtmlReport.tsx</c> pins the
-/// same id on its outer <c>&lt;div&gt;</c>.
+/// response header. The frontend's inline-report component pins the same
+/// id on its outer <c>&lt;div&gt;</c>.
 /// </para>
 /// </remarks>
 static class HtmlFragmentTransformer

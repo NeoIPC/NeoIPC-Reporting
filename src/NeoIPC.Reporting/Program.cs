@@ -22,9 +22,8 @@ using NeoIPC.Reporting.Resources;
 
 // Schema-emit short-circuit: writes the source-generator-emitted
 // <Report>ApiParameters.Schema arrays to JSON files in <dir>, then
-// exits without starting the web host. The neoipc-app workspace
-// vendors these snapshots and runs a CI drift check against them; see
-// `repos/neoipc-app/scripts/check-schema-drift.mjs`. The file names
+// exits without starting the web host. The neoipc-app repository vendors
+// these snapshots and runs a CI drift check against them. The file names
 // match the form spec keys: `partner-report.json`, `reference-report.json`.
 if (args.Length >= 2 && args[0] == "--emit-schemas")
 {
