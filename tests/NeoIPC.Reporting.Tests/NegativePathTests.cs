@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
 using NUnit.Framework;
@@ -95,7 +96,13 @@ public class NegativePathTests
     {
         var req = new HttpRequestMessage(HttpMethod.Post, path)
         {
-            Content = new StringContent(body),
+            // The app is the only real client of this route and sends the file's
+            // own type, falling back to application/json. Bare StringContent
+            // sends text/plain, so a test built that way differs in shape from
+            // every request the route actually receives — not a difference the
+            // handler reads today, since it streams the body through without a
+            // content-type gate, but the fidelity is free.
+            Content = new StringContent(body, Encoding.UTF8, "application/json"),
         };
         req.Headers.Add("Cookie", "JSESSIONID=test-placeholder-session-id");
         req.Headers.Add("Accept", "application/pdf");
@@ -277,7 +284,7 @@ public class NegativePathTests
         var req = new HttpRequestMessage(
             HttpMethod.Post, "/partner-report?unitCodes=DE_TEST_TEST")
         {
-            Content = new StringContent("{}"),
+            Content = new StringContent("{}", Encoding.UTF8, "application/json"),
         };
         req.Headers.Add("Cookie", "JSESSIONID=test-placeholder-session-id");
         req.Headers.Add("Accept", "application/pdf");
