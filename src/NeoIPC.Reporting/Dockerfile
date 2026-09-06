@@ -516,6 +516,11 @@ ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["src/NeoIPC.Reporting/NeoIPC.Reporting.csproj", "src/NeoIPC.Reporting/"]
 COPY ["src/NeoIPC.Reporting.Generators/NeoIPC.Reporting.Generators.csproj", "src/NeoIPC.Reporting.Generators/"]
+# Directory.Build.props carries <Version>, and MSBuild applies it to every project below it. Copied
+# with the project files rather than arriving with `COPY . .` below, so restore and publish evaluate
+# the same properties — and so a version change invalidates this layer, which is correct: the
+# published assembly embeds it.
+COPY ["Directory.Build.props", "./"]
 RUN dotnet restore "./src/NeoIPC.Reporting/NeoIPC.Reporting.csproj"
 COPY . .
 WORKDIR "/src/src/NeoIPC.Reporting"

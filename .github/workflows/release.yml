@@ -60,6 +60,63 @@ jobs:
         run: |
           echo "::error::Tag '$GITHUB_REF_NAME' already existed and was moved; releases are immutable. Cut a new version instead."
           exit 1
+      - name: Verify the release tag matches Directory.Build.props
+        # The tag is the source of truth for what is released; this value is what the published
+        # assembly reports about itself. They must agree, or a pulled image describes a version it is
+        # not — the sibling repositories check the same thing against VERSION, DESCRIPTION and
+        # package.json. Checked before the expensive image build, not after it.
+        #
+        # Read as XML, not with a regex over the text: a regex cannot tell a live element from one
+        # inside a comment, and concatenates the values of two elements into a version that exists
+        # nowhere. The parser sees exactly the elements MSBuild sees.
+        if: github.event_name == 'push'
+        shell: pwsh
+        run: |
+          $want = $env:GITHUB_REF_NAME -replace '^v', ''
+          $nodes = ([xml](Get-Content -Raw Directory.Build.props)).SelectNodes('/Project/PropertyGroup/Version')
+          if ($nodes.Count -ne 1) {
+            Write-Output "::error file=Directory.Build.props::Expected exactly one <Version> element, found $($nodes.Count)."
+            exit 1
+          }
+          $file = $nodes[0].InnerText.Trim()
+          if (-not $file) {
+            Write-Output "::error file=Directory.Build.props::The <Version> element is empty."
+            exit 1
+          }
+          if ($want -ne $file) {
+            Write-Output "::error file=Directory.Build.props::Release version '$want' does not match Directory.Build.props ('$file'). Bump it to match before releasing."
+            exit 1
+          }
+          Write-Output "Release version matches Directory.Build.props ($file)."
+      - name: Extract this version's CHANGELOG.md section
+        # The Release body comes from this version's own CHANGELOG.md section rather than from
+        # generated commit notes, and the extraction is the gate: a missing or empty section fails
+        # the job here, before the image is built or pushed, so a version described nowhere leaves
+        # nothing published. There is no fallback to --generate-notes, which would silently restore
+        # what the changelog replaces.
+        #
+        # The heading is matched as a literal prefix, not as a pattern — a version carries `.` and
+        # `-`, which a regex built from it would interpret, and the closing `]` is what stops `0.2.0`
+        # matching a `0.2.0-rc.1` heading. A section ends at the next version heading or at a Keep a
+        # Changelog link-reference line (`[x.y.z]: url`), so the trailing reference definitions never
+        # leak into the last version's body.
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          ver="${GITHUB_REF_NAME#v}"
+          section="$(awk -v want="## [$ver]" '
+            index($0, want) == 1 { inside = 1; next }
+            inside && index($0, "## [") == 1 { exit }
+            inside && $0 ~ /^\[[^]]+\]: / { exit }
+            inside { print }
+          ' CHANGELOG.md)"
+          if [ -z "$(printf '%s' "$section" | tr -d '[:space:]')" ]; then
+            echo "::error file=CHANGELOG.md::CHANGELOG.md has no non-empty '## [$ver]' section. Describe this release before tagging."
+            exit 1
+          fi
+          printf '%s\n' "$section" > "$RUNNER_TEMP/release-notes.md"
+          echo "Release notes for $ver taken from CHANGELOG.md:"
+          cat "$RUNNER_TEMP/release-notes.md"
       - name: Enforce monotonic version (per-line, semver-correct)
         # Reject a within-line version regression before the expensive image build; a new major.minor line
         # (and backports on older lines) are allowed. Map a pre-release '-' -> '~' before `sort -V` so its
@@ -170,8 +227,9 @@ jobs:
             NEOIPCR_TAG=${{ steps.pins.outputs.neoipcr_tag }}
 
       - name: Create the GitHub Release
-        # Document the pushed image with a Release (generated notes; pre-release for a pre-release tag). The
-        # image is the deliverable, so no asset is attached. Only on a tag push, not on dispatch rebuilds.
+        # Document the pushed image with a Release, its body the CHANGELOG.md section extracted
+        # before the build. The image is the deliverable, so no asset is attached. Only on a tag
+        # push, not on dispatch rebuilds.
         if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -182,4 +240,4 @@ jobs:
           # Idempotent: an Actions re-run reuses the original push payload (created stays true, so the retag
           # guard passes) — skip creation if a prior (partial) run already made the Release.
           gh release view "$tag" >/dev/null 2>&1 && { echo "Release $tag already exists; skipping creation."; exit 0; }
-          gh release create "$tag" --generate-notes $pre
+          gh release create "$tag" --notes-file "$RUNNER_TEMP/release-notes.md" $pre

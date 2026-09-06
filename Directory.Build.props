@@ -1,0 +1,23 @@
+<Project>
+
+  <!--
+    The service's version, in one place for every project in the solution.
+
+    This is the version the published assembly reports. Without it MSBuild defaults to 1.0.0, so a
+    released image carried a binary describing itself as 1.0.0 whatever tag the image was published
+    under. The image's labels already carried the versions of the sources baked into it and, from
+    the metadata action, the image's own tag as org.opencontainers.image.version; the assembly
+    inside did not.
+
+    The release tag remains the source of truth: a `v*` tag drives both the image tag and the
+    Release, and the release workflow verifies this value matches it, exactly as the sibling
+    repositories verify their VERSION file, DESCRIPTION and package.json. Bump this in the same
+    commit that adds the version's CHANGELOG.md section: a pull-request job fails while that section
+    is missing, and on a tag push the release workflow extracts it before the image is built, so a
+    version described nowhere fails its release with nothing published.
+  -->
+  <PropertyGroup>
+    <Version>0.2.0</Version>
+  </PropertyGroup>
+
+</Project>

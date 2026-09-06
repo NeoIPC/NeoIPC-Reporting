@@ -31,6 +31,57 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changelog-section:
+    # Directory.Build.props' <Version> must already be described in CHANGELOG.md. The release workflow
+    # enforces the same thing, but only once a tag exists — and a tag here is immutable (the retag
+    # guard rejects a moved one), so discovering a missing section at release time costs a version
+    # number rather than an edit. Catching it on the pull request keeps it an edit.
+    name: Changelog section for this version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - id: version
+        name: Read the version from Directory.Build.props
+        # Read as XML, not with a regex over the text, as in the release workflow: a regex cannot
+        # tell a live element from one inside a comment, and concatenates the values of two elements
+        # into a version that exists nowhere. The parser sees exactly the elements MSBuild sees.
+        shell: pwsh
+        run: |
+          $nodes = ([xml](Get-Content -Raw Directory.Build.props)).SelectNodes('/Project/PropertyGroup/Version')
+          if ($nodes.Count -ne 1) {
+            Write-Output "::error file=Directory.Build.props::Expected exactly one <Version> element, found $($nodes.Count)."
+            exit 1
+          }
+          $file = $nodes[0].InnerText.Trim()
+          if (-not $file) {
+            Write-Output "::error file=Directory.Build.props::The <Version> element is empty."
+            exit 1
+          }
+          "version=$file" >> $env:GITHUB_OUTPUT
+          Write-Output "Directory.Build.props declares $file."
+      - name: CHANGELOG.md describes the built version
+        # Literal prefix match, as in the release workflow: a version carries `.` and `-`, which a
+        # regex built from it would interpret, and the closing `]` is what stops `0.2.0` matching a
+        # `0.2.0-rc.1` heading. A section ends at the next version heading or at a Keep a Changelog
+        # link-reference line (`[x.y.z]: url`), so the trailing reference definitions never leak into
+        # the last version's body.
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          ver="$VERSION"
+          section="$(awk -v want="## [$ver]" '
+            index($0, want) == 1 { inside = 1; next }
+            inside && index($0, "## [") == 1 { exit }
+            inside && $0 ~ /^\[[^]]+\]: / { exit }
+            inside { print }
+          ' CHANGELOG.md)"
+          if [ -z "$(printf '%s' "$section" | tr -d '[:space:]')" ]; then
+            echo "::error file=CHANGELOG.md::CHANGELOG.md has no non-empty '## [$ver]' section, but Directory.Build.props declares $ver. Describe the version before releasing it."
+            exit 1
+          fi
+          echo "CHANGELOG.md documents $ver."
+
   text-hygiene:
     # LF line endings and UTF-8 without a BOM on every committed text file.
     #
