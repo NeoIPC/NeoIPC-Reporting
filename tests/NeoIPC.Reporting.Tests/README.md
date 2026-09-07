@@ -20,9 +20,11 @@ Run the project as it is. With nothing set up beforehand:
 
 - `Unit` and `Generator` run.
 - `Container` builds `neoipc-reporting:smoke-test` from `src/NeoIPC.Reporting/Dockerfile` and runs
-  it. The build happens on every run, so the tests exercise the current sources rather than
-  whatever an earlier build left behind; BuildKit's layer cache makes a rebuild of unchanged
-  sources a matter of seconds. **The first build on a machine takes tens of minutes**: it clones
+  it. The build happens on every run, so the tests exercise this repository's current sources
+  rather than whatever an earlier build left behind; the Surveillance-Toolkit clone and the neoipcr
+  install are cached layers that stay at whatever `main` was when they were first built, until
+  `docker builder prune`. BuildKit's layer cache makes a rebuild of unchanged sources a matter of
+  seconds. **The first build on a machine takes tens of minutes**: it clones
   the Surveillance-Toolkit `main` branch from GitHub, installs neoipcr from its `main` branch, and
   installs R, TeX Live and Quarto. The build output reaches the runner as progress messages,
   which Visual Studio shows in the test output pane and `dotnet test` shows from

@@ -32,9 +32,10 @@ public sealed class Dhis2SessionClient
     /// <summary>
     /// Looks up the user owning <paramref name="sessionId"/>, or returns
     /// <c>null</c> when the session is invalid/expired or the upstream call
-    /// fails. Network errors, a timeout and parse errors are logged and
-    /// surface as a null result, which the auth handler treats as a failed
-    /// authentication; only the caller's own cancellation propagates.
+    /// fails. Network errors, a timeout — the response is buffered, so the
+    /// client's timeout covers headers and body alike — and parse errors are
+    /// logged and surface as a null result, which the auth handler treats as a
+    /// failed authentication; only the caller's own cancellation propagates.
     /// </summary>
     public async Task<Dhis2UserInfo?> GetUserInfoAsync(string sessionId, CancellationToken ct)
     {
@@ -52,7 +53,10 @@ public sealed class Dhis2SessionClient
         HttpResponseMessage res;
         try
         {
-            res = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+            // Buffered, not streamed: HttpClient's timeout covers a streamed response
+            // only until its headers arrive, and a DHIS2 that stalls after sending them
+            // would then hang the request. The field-filtered body is small.
+            res = await _http.SendAsync(req, ct);
         }
         catch (HttpRequestException ex)
         {

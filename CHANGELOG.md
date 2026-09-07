@@ -41,6 +41,9 @@ product's own changelog, and here only as the pin that carries it.
 
 ### Fixed
 
+- A DHIS2 that did not answer within the session client's timeout crashed the request with a
+  `500`; the session now fails authentication, so the request is refused with the `401` or `403`
+  an invalid session gets, and the log names the likely cause.
 - The assembly inside the image reported `1.0.0` whatever tag the image carried; it now reports the
   service's version, which the release workflow verifies against the tag.
 - The documented local development stack crash-looped: its compose overlay selected the Development

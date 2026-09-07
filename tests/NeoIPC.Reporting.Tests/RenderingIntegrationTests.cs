@@ -84,7 +84,12 @@ public class RenderingIntegrationTests
     public async Task PartnerReport_Online_Pdf_RendersForSeededDepartment()
     {
         var department = ExternalDhis2Fixture.TestDepartmentCode;
-        if (!await ExternalDhis2Fixture.OrgUnitExistsAsync(_session, department))
+        var (exists, problem) = await ExternalDhis2Fixture.LookupOrgUnitAsync(_session, department);
+        if (problem is not null)
+            Assert.Ignore(
+                $"Could not look up organisation unit '{department}' at " +
+                $"{ExternalDhis2Fixture.Dhis2BaseUrl}: {problem}.");
+        if (!exists)
             Assert.Ignore(
                 $"No organisation unit with code '{department}' at {ExternalDhis2Fixture.Dhis2BaseUrl}. " +
                 "Seed the instance with the play package, or set NEOIPC_TEST_DEPARTMENT_CODE to a " +
@@ -99,7 +104,7 @@ public class RenderingIntegrationTests
         // department and changes nothing for a regular one like the default
         // AT_TEST_TEST, so the render works whichever kind the code names.
         using var request = new HttpRequestMessage(HttpMethod.Get,
-            $"partner-report?unitCodes={Uri.EscapeDataString(department!)}&includeTestData=true");
+            $"partner-report?unitCodes={Uri.EscapeDataString(department)}&includeTestData=true");
         request.Headers.Add("Accept", "application/pdf");
         request.Headers.Add("Accept-Language", "en");
 

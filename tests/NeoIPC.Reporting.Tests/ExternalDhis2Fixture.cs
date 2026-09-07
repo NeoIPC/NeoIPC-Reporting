@@ -70,17 +70,21 @@ public static class ExternalDhis2Fixture
         Environment.GetEnvironmentVariable("NEOIPC_TEST_DEPARTMENT_CODE") ?? "AT_TEST_TEST";
 
     /// <summary>
-    /// Whether DHIS2 holds an organisation unit with <paramref name="code"/>, looked
-    /// up by code through the given session. False when the lookup fails, so the
-    /// render test can skip with a message naming the code rather than fail on the
-    /// render's own refusal.
+    /// Looks an organisation unit up by <paramref name="code"/> through the given
+    /// session. <c>Exists</c> answers the question when the lookup succeeded;
+    /// <c>Problem</c> says what went wrong when it did not, so a caller can report
+    /// that rather than a seeding state the lookup never established.
     /// </summary>
-    public static async Task<bool> OrgUnitExistsAsync(
+    public static async Task<(bool Exists, string? Problem)> LookupOrgUnitAsync(
         string jsessionId, string code, CancellationToken ct = default)
     {
         try
         {
-            using var client = new HttpClient
+            // Redirects are not followed, as in LoginAsync: an expired session answers
+            // with a 302 to the login page, which has to surface as that status rather
+            // than as the login page's HTML failing to parse as JSON.
+            using var handler = new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false };
+            using var client = new HttpClient(handler)
             {
                 BaseAddress = new Uri(Dhis2BaseUrl + "/"),
                 Timeout = TimeSpan.FromSeconds(15),
@@ -89,16 +93,26 @@ public static class ExternalDhis2Fixture
             using var resp = await client.GetAsync(
                 $"api/organisationUnits?filter=code:eq:{Uri.EscapeDataString(code)}&fields=id&paging=false",
                 ct);
-            if (resp.StatusCode != HttpStatusCode.OK) return false;
+            if (resp.StatusCode != HttpStatusCode.OK)
+                return (false, $"DHIS2 answered {(int)resp.StatusCode} to the lookup");
 
             using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
-            return doc.RootElement.TryGetProperty("organisationUnits", out var units)
-                && units.ValueKind == JsonValueKind.Array
-                && units.GetArrayLength() > 0;
+            if (!doc.RootElement.TryGetProperty("organisationUnits", out var units)
+                || units.ValueKind != JsonValueKind.Array)
+                return (false, "the lookup's response carries no organisationUnits array");
+            return (units.GetArrayLength() > 0, null);
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
+        catch (HttpRequestException ex)
         {
-            return false;
+            return (false, $"the lookup failed: {ex.Message}");
+        }
+        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+        {
+            return (false, "the lookup timed out");
+        }
+        catch (JsonException ex)
+        {
+            return (false, $"the lookup's response is not JSON: {ex.Message}");
         }
     }
 

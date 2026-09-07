@@ -16,9 +16,12 @@ namespace NeoIPC.Reporting.Tests;
 /// exercise the image with no separate step to remember. The build runs on every
 /// such run, not only when the tag is missing: an image left over from an earlier
 /// build tests the sources as they were then, and a fixture that reused it would
-/// report on code that no longer exists. BuildKit's layer cache keeps an unchanged
-/// rebuild to seconds; the first build on a machine fetches the R, TeX Live and
-/// Quarto toolchains and the report sources from GitHub, and takes tens of minutes.
+/// report on code that no longer exists. That currency is this repository's own:
+/// the Surveillance-Toolkit clone and the neoipcr install are cached layers that
+/// stay at whatever <c>main</c> was when the cache entry was made, until the
+/// builder cache is pruned. BuildKit's layer cache keeps an unchanged rebuild to
+/// seconds; the first build on a machine fetches the R, TeX Live and Quarto
+/// toolchains and the report sources from GitHub, and takes tens of minutes.
 /// Naming a tag opts out of the build: the CI smoke job builds with its own inputs
 /// and names the result, and a developer can point at any built image the same way.
 /// </para>
@@ -34,7 +37,7 @@ static class SmokeTestImage
     const string SolutionFileName = "NeoIPC-Reporting.sln";
 
     static readonly SemaphoreSlim Gate = new(1, 1);
-    static bool _built;
+    static Task? _build;
 
     /// <summary>
     /// Returns the tag to run, building it first when <c>NEOIPC_REPORTING_IMAGE_TAG</c>
@@ -45,30 +48,31 @@ static class SmokeTestImage
         var configured = Environment.GetEnvironmentVariable("NEOIPC_REPORTING_IMAGE_TAG");
         if (!string.IsNullOrWhiteSpace(configured)) return configured;
 
-        // Both container fixtures resolve the image; the second finds it built.
+        // Both container fixtures resolve the image. The build's task is kept, so the
+        // second fixture awaits the first's outcome — a failure or a skip included —
+        // rather than running the build again and reporting the same failure twice.
         await Gate.WaitAsync();
         try
         {
-            if (!_built)
-            {
-                await BuildAsync();
-                _built = true;
-            }
+            _build ??= BuildAsync();
         }
         finally
         {
             Gate.Release();
         }
 
+        await _build;
         return DefaultTag;
     }
 
     static async Task BuildAsync()
     {
-        var root = RepositoryRoot();
         var progress = TestContext.Progress;
 
-        var daemon = await RunDockerAsync(root, ["version", "--format", "{{.Server.Version}}"], _ => { });
+        // The probe needs no checkout, so it runs first: a machine without Docker is a
+        // skip whether or not the binaries sit inside a repository.
+        var daemon = await RunDockerAsync(
+            AppContext.BaseDirectory, ["version", "--format", "{{.Server.Version}}"], _ => { });
         if (daemon is null)
             Assert.Ignore("Category=Container tests need Docker: no `docker` command was found on PATH.");
         if (daemon.ExitCode != 0)
@@ -76,6 +80,7 @@ static class SmokeTestImage
                 "Category=Container tests need a running Docker daemon: `docker version` could not " +
                 $"reach one. {daemon.LastLines}");
 
+        var root = RepositoryRoot();
         progress.WriteLine(
             $"Building {DefaultTag} from {DockerfilePath} (BuildKit cache; the first build on a " +
             "machine takes tens of minutes)...");
@@ -146,7 +151,11 @@ static class SmokeTestImage
         {
             process.Start();
         }
-        catch (Win32Exception)
+        // Only "not found" means there is no docker to run: code 2 is ENOENT on Unix and
+        // ERROR_FILE_NOT_FOUND on Windows, 3 is ERROR_PATH_NOT_FOUND. Any other start
+        // failure — a docker that is not executable, access denied — propagates and
+        // fails the fixture with its own message instead of being reported as a skip.
+        catch (Win32Exception ex) when (ex.NativeErrorCode is 2 or 3)
         {
             return null;
         }
