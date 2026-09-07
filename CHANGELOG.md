@@ -15,21 +15,27 @@ product's own changelog, and here only as the pin that carries it.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-07
+
 ### Added
 
 - An MIT licence, with the notice shipped inside the image.
 
 ### Changed
 
+- The image bakes the reports at `reports-v0.1.0-alpha` and neoipcr at `v0.0.0.9001`, in place of the
+  first alpha of each. What that carries is in those products' own changelogs; the two that change
+  this service's behaviour are the Reference Report's department filter, which now reaches the render,
+  and the antibiotic-utilization table, whose exported name the reports call and which no earlier
+  neoipcr release carried.
 - Quarto 1.10.18 and the TeX Live packages the reports' archival-PDF (PDF/A) output requires; a
   KOMA-Script "tagging not supported" warning surfaces as an error on the LaTeX log channel rather
   than letting a document assert a conformance it lost.
 - Each report mode — live fetch, stored reference dataset, uploaded partner dataset — accepts only
   the parameters it can honour, and refuses the rest under its own problem code instead of ignoring
   them. The reference report takes a `departmentFilter` parameter in place of the removed
-  `hospitalFilter`, and the service passes it to the report; it takes effect once the pinned report
-  sources carry it, which `reports-v0.0.1-alpha` does not: with that pin the JSON output ignores the
-  filter, and a rendered output that carries it fails. A failed output negotiation is a coded `406`
+  `hospitalFilter`, and the service passes it to the report, which the pin below carries, so the
+  filter reaches the rendered output rather than being ignored. A failed output negotiation is a coded `406`
   rather than a bodiless `415`, and a request whose dataset is stored or uploaded, but which accepts
   no rendered output, is refused before any stored dataset is looked up.
 - The default `Reporting:Dhis2BaseUrl` is `http://dhis2-backend:8080`, the DHIS2 service's name in
@@ -97,5 +103,6 @@ product's own changelog, and here only as the pin that carries it.
   case-sensitively as an enum whose names are capitalized; it now accepts the lowercase tokens the
   app sends.
 
-[Unreleased]: https://github.com/NeoIPC/NeoIPC-Reporting/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/NeoIPC/NeoIPC-Reporting/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/NeoIPC/NeoIPC-Reporting/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/NeoIPC/NeoIPC-Reporting/compare/v0.1.4...v0.2.0
