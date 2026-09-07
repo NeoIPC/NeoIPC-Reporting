@@ -316,6 +316,15 @@ class PartnerReport
                 "When partner data is uploaded, the dataset fixes the department and "
                 + "'unitCodes' must not be specified.");
 
+        // What an uploaded dataset can be rendered to does not depend on the
+        // benchmark it names, so a request that accepts no rendered output is
+        // refused here, before the benchmark is looked up — as ReferenceReport
+        // refuses the same request for a stored dataset.
+        if (partnerDataBody is not null
+            && !OutputNegotiation.AnyRenderedOutputIsAcceptable(apiParameters.AcceptHeaders))
+            return ProblemDetailsHelper.NotAcceptable(
+                ProblemCodes.NoAcceptableOutput, UploadedDatasetOutputs);
+
         // Authorization runs after request-shape validation so the shape
         // checks above stay reachable without a valid DHIS2 session.
         var forbidden = await NeoIpcAuthorization.RequireAsync(
@@ -353,9 +362,7 @@ class PartnerReport
             return ProblemDetailsHelper.NotAcceptable(
                 ProblemCodes.NoAcceptableOutput,
                 partnerDataBody is not null
-                    ? "No output matching this request's Accept and Accept-Language can be produced. "
-                      + "An uploaded partner dataset renders to text/html or application/pdf only; "
-                      + "the application/json dataset is produced by the online (GET) path."
+                    ? UploadedDatasetOutputs
                     : "No output matching this request's Accept and Accept-Language can be produced. "
                       + "This report serves text/html, application/pdf and application/json.");
 
@@ -386,6 +393,15 @@ class PartnerReport
                 dataResult, generator.MediaType, fragmentMode, cancellationToken);
         }
     }
+
+    // Shared by the two refusals that say what an uploaded dataset can be rendered
+    // to: the one before the benchmark lookup, when no rendered output is acceptable
+    // at all, and the one after producer selection, when a rendered one was but no
+    // language.
+    const string UploadedDatasetOutputs =
+        "No output matching this request's Accept and Accept-Language can be produced. "
+        + "An uploaded partner dataset renders to text/html or application/pdf only; "
+        + "the application/json dataset is produced by the online (GET) path.";
 
     static PartnerReportRenderParameters ResolveRenderParameters(
         PartnerReportApiParameters apiParameters,

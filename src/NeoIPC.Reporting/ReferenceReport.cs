@@ -141,6 +141,14 @@ class ReferenceReport
                     "When 'referenceDataId' is set, the dataset is fixed and the live-fetch filter " +
                     $"params must not be specified: {string.Join(", ", rejected)}.");
 
+            // What a stored dataset can be rendered to does not depend on which
+            // dataset it is, so a request that accepts no rendered output is refused
+            // here, before the id is looked up: the caller learns which output to
+            // ask for rather than whether the id exists.
+            if (!OutputNegotiation.AnyRenderedOutputIsAcceptable(accept))
+                return ProblemDetailsHelper.NotAcceptable(
+                    ProblemCodes.NoAcceptableOutput, StoredDatasetOutputs);
+
             if (!FileStorage.IsValidId(referenceDataId!))
                 return ProblemDetailsHelper.BadRequest(
                     ProblemCodes.InvalidReferenceDataId,
@@ -222,9 +230,7 @@ class ReferenceReport
             return ProblemDetailsHelper.NotAcceptable(
                 ProblemCodes.NoAcceptableOutput,
                 hasStoredDataMode
-                    ? "No output matching this request's Accept and Accept-Language can be produced. "
-                      + "A stored reference dataset renders to text/html or application/pdf only; "
-                      + "the application/json dataset is available without 'referenceDataId'."
+                    ? StoredDatasetOutputs
                     : "No output matching this request's Accept and Accept-Language can be produced. "
                       + "This report serves text/html, application/pdf and application/json.");
 
@@ -235,6 +241,14 @@ class ReferenceReport
                 dataResult, generator.MediaType, fragmentMode ?? false, cancellationToken);
         }
     }
+
+    // Shared by the two refusals that say what a stored dataset can be rendered to:
+    // the one before the lookup, when no rendered output is acceptable at all, and
+    // the one after producer selection, when a rendered one was but no language.
+    const string StoredDatasetOutputs =
+        "No output matching this request's Accept and Accept-Language can be produced. "
+        + "A stored reference dataset renders to text/html or application/pdf only; "
+        + "the application/json dataset is available without 'referenceDataId'.";
 
     // Every parameter that only a live fetch can honour belongs here, and the test
     // for membership is where the value is consumed: each of these reaches

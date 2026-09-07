@@ -30,8 +30,9 @@ namespace NeoIPC.Reporting.Tests;
 ///   <c>NEOIPC_DHIS2_ADMIN_PASS</c> — DHIS2 credentials (default
 ///   <c>admin</c> / <c>district</c>).</description></item>
 ///   <item><description><c>NEOIPC_TEST_DEPARTMENT_CODE</c> — the seeded
-///   test department's org-unit code; render tests self-skip when it is
-///   unset (i.e. the instance has not been seeded).</description></item>
+///   test department's org-unit code (default <c>AT_TEST_TEST</c>, the play
+///   package's regular test department); the render test self-skips when no
+///   organisation unit carries that code.</description></item>
 /// </list>
 /// <para>
 /// Why a real credential login and not basic auth: the reporting service
@@ -61,9 +62,59 @@ public static class ExternalDhis2Fixture
     public static string AdminPass =>
         Environment.GetEnvironmentVariable("NEOIPC_DHIS2_ADMIN_PASS") ?? "district";
 
-    /// <summary>The seeded test department's org-unit code, or null when unseeded.</summary>
-    public static string? TestDepartmentCode =>
-        Environment.GetEnvironmentVariable("NEOIPC_TEST_DEPARTMENT_CODE");
+    /// <summary>
+    /// The seeded test department's org-unit code: <c>NEOIPC_TEST_DEPARTMENT_CODE</c>,
+    /// or <c>AT_TEST_TEST</c>, the play package's regular test department.
+    /// </summary>
+    public static string TestDepartmentCode =>
+        Environment.GetEnvironmentVariable("NEOIPC_TEST_DEPARTMENT_CODE") ?? "AT_TEST_TEST";
+
+    /// <summary>
+    /// Looks an organisation unit up by <paramref name="code"/> through the given
+    /// session. <c>Exists</c> answers the question when the lookup succeeded;
+    /// <c>Problem</c> says what went wrong when it did not, so a caller can report
+    /// that rather than a seeding state the lookup never established.
+    /// </summary>
+    public static async Task<(bool Exists, string? Problem)> LookupOrgUnitAsync(
+        string jsessionId, string code, CancellationToken ct = default)
+    {
+        try
+        {
+            // Redirects are not followed, as in LoginAsync: an expired session answers
+            // with a 302 to the login page, which has to surface as that status rather
+            // than as the login page's HTML failing to parse as JSON.
+            using var handler = new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false };
+            using var client = new HttpClient(handler)
+            {
+                BaseAddress = new Uri(Dhis2BaseUrl + "/"),
+                Timeout = TimeSpan.FromSeconds(15),
+            };
+            client.DefaultRequestHeaders.Add("Cookie", $"JSESSIONID={jsessionId}");
+            using var resp = await client.GetAsync(
+                $"api/organisationUnits?filter=code:eq:{Uri.EscapeDataString(code)}&fields=id&paging=false",
+                ct);
+            if (resp.StatusCode != HttpStatusCode.OK)
+                return (false, $"DHIS2 answered {(int)resp.StatusCode} to the lookup");
+
+            using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+            if (!doc.RootElement.TryGetProperty("organisationUnits", out var units)
+                || units.ValueKind != JsonValueKind.Array)
+                return (false, "the lookup's response carries no organisationUnits array");
+            return (units.GetArrayLength() > 0, null);
+        }
+        catch (HttpRequestException ex)
+        {
+            return (false, $"the lookup failed: {ex.Message}");
+        }
+        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+        {
+            return (false, "the lookup timed out");
+        }
+        catch (JsonException ex)
+        {
+            return (false, $"the lookup's response is not JSON: {ex.Message}");
+        }
+    }
 
     /// <summary>
     /// Probes the reporting service via its anonymous

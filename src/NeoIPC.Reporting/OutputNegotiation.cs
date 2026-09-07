@@ -81,6 +81,23 @@ public static class OutputNegotiation
     }
 
     /// <summary>
+    /// True when at least one rendered (html/pdf) output is acceptable. A stored
+    /// dataset can only be rendered, so a request that accepts no rendered output
+    /// cannot be served from one whatever the dataset holds — which lets a handler
+    /// refuse it before looking the dataset up.
+    /// </summary>
+    public static bool AnyRenderedOutputIsAcceptable(ImmutableArray<MediaTypeHeaderValue> acceptHeaders)
+    {
+        foreach (var header in acceptHeaders)
+        {
+            if (header.Quality is <= 0) continue;
+            if (QuartoReportProducer.IsMediaTypeSupported(header.MediaType.ToString())) return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Walks a sorted Accept-Language list and invokes
     /// <paramref name="factory"/> for the first language that
     /// <paramref name="isSupported"/> accepts. Tries the full tag first

@@ -14,24 +14,22 @@ namespace NeoIPC.Reporting.Tests;
 /// authorization-without-claims) run before the auth round-trip.
 /// </summary>
 /// <remarks>
-/// Shares a container with <see cref="ParametersEndpointTests"/>'s image
-/// tag (<c>NEOIPC_REPORTING_IMAGE_TAG</c>, default
-/// <c>neoipc-reporting:smoke-test</c>) but spins its own container
+/// Runs the image <see cref="SmokeTestImage"/> resolves, as
+/// <see cref="ParametersEndpointTests"/> does, but spins its own container
 /// instance up for isolation.
 /// </remarks>
 [TestFixture]
 [Category("Container")]
 public class NegativePathTests
 {
-    static readonly string ImageTag =
-        Environment.GetEnvironmentVariable("NEOIPC_REPORTING_IMAGE_TAG") ?? "neoipc-reporting:smoke-test";
-
     IContainer? _container;
     HttpClient? _http;
 
     [OneTimeSetUp]
     public async Task StartContainer()
     {
+        var imageTag = await SmokeTestImage.ResolveAsync();
+
         // Skip rather than fail when there is no Docker to talk to, matching
         // RenderingIntegrationTests' behaviour for an absent stack: a plain
         // `dotnet test` on a developer machine should report "ignored" for the
@@ -45,7 +43,7 @@ public class NegativePathTests
         // verifying the thing it exists to verify.
         try
         {
-            _container = new ContainerBuilder(ImageTag)
+            _container = new ContainerBuilder(imageTag)
                 .WithPortBinding(8080, true)
                 .WithEnvironment("ASPNETCORE_HTTP_PORTS", "8080")
                 .WithWaitStrategy(Wait.ForUnixContainer()
@@ -59,9 +57,7 @@ public class NegativePathTests
         }
         catch (DockerUnavailableException ex)
         {
-            Assert.Ignore(
-                $"Category=Container tests need a running Docker daemon and the '{ImageTag}' " +
-                $"image already built. {ex.Message}");
+            Assert.Ignore($"Category=Container tests need a running Docker daemon. {ex.Message}");
         }
 
         var port = _container!.GetMappedPublicPort(8080);
@@ -141,15 +137,17 @@ public class NegativePathTests
     public async Task ReferenceReport_JsonOutput_WithoutAcceptLanguage_IsNotRejectedWith406()
     {
         // Same rule for the reference report's JSON output: a missing
-        // Accept-Language must not 406 the locale-independent data output. A
-        // malformed referenceDataId now surfaces the id-format 400 that the
-        // blanket 406 previously masked.
-        var req = new HttpRequestMessage(HttpMethod.Get, "/reference-report?referenceDataId=not-32-hex");
+        // Accept-Language must not 406 the locale-independent data output. The
+        // live-fetch mode is the one that produces JSON, and there the request gets
+        // as far as the admin check, which refuses the placeholder session — a 403
+        // that proves the locale gate let it through. (A stored dataset produces no
+        // JSON at all, and that refusal is its own coded 406, tested below.)
+        var req = new HttpRequestMessage(HttpMethod.Get, "/reference-report");
         req.Headers.Add("Cookie", "JSESSIONID=test-placeholder-session-id");
         req.Headers.Add("Accept", "application/json");
         // No Accept-Language header.
         var response = await _http!.SendAsync(req);
-        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
     }
 
     [Test]

@@ -32,8 +32,10 @@ public sealed class Dhis2SessionClient
     /// <summary>
     /// Looks up the user owning <paramref name="sessionId"/>, or returns
     /// <c>null</c> when the session is invalid/expired or the upstream call
-    /// fails. Network and parse errors are logged and surface as a null
-    /// result, which the auth handler treats as a failed authentication.
+    /// fails. Network errors, a timeout — the response is buffered, so the
+    /// client's timeout covers headers and body alike — and parse errors are
+    /// logged and surface as a null result, which the auth handler treats as a
+    /// failed authentication; only the caller's own cancellation propagates.
     /// </summary>
     public async Task<Dhis2UserInfo?> GetUserInfoAsync(string sessionId, CancellationToken ct)
     {
@@ -51,11 +53,30 @@ public sealed class Dhis2SessionClient
         HttpResponseMessage res;
         try
         {
-            res = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+            // Buffered, not streamed: HttpClient's timeout covers a streamed response
+            // only until its headers arrive, and a DHIS2 that stalls after sending them
+            // would then hang the request. The field-filtered body is small.
+            res = await _http.SendAsync(req, ct);
         }
         catch (HttpRequestException ex)
         {
             _logger.LogWarning(ex, "DHIS2 /api/me request failed.");
+            return null;
+        }
+        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        {
+            // HttpClient reports its own timeout as a cancellation wrapping a
+            // TimeoutException, which is what tells it from a cancellation the caller
+            // asked for; that one carries the caller's token and propagates. A DHIS2
+            // that does not answer in time cannot vouch for anyone, so the request is
+            // unauthenticated rather than failed. A hang lasting exactly the timeout
+            // is what a resolver that holds an unknown name open instead of refusing
+            // it produces, which is why the message names that cause.
+            _logger.LogWarning(ex,
+                "DHIS2 /api/me did not answer within {Timeout}: DHIS2 is unreachable at {BaseUri}, " +
+                "or its host name did not resolve in time (a VPN resolver can hold an unknown " +
+                "name until the timeout instead of refusing it).",
+                _http.Timeout, _endpoint.BaseUri);
             return null;
         }
 
