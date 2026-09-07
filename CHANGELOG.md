@@ -35,8 +35,10 @@ product's own changelog, and here only as the pin that carries it.
   this repository's own compose file; a deployment that sets nothing follows it.
 - R and the `r-cran-*` packages track the current CRAN release again; the stopgap `r-base-core` pin
   is gone.
-- Dependencies moved to current releases, among them Roslyn 5.6.0 for the source generator,
-  Testcontainers 4.13 and `Microsoft.AspNetCore.OpenApi` 10.0.10.
+- Dependencies moved to current releases, among them Roslyn 5.9.0 for the source generator,
+  AngleSharp 1.8.0, Testcontainers 4.15 and `Microsoft.AspNetCore.OpenApi` 10.0.11.
+- The image builds on the .NET SDK 10.0.400 and runs on ASP.NET Core 10.0.11. The generator's
+  Roslyn can be no newer than the compiler in the SDK image, so the two move together.
 
 ### Fixed
 
@@ -49,8 +51,11 @@ product's own changelog, and here only as the pin that carries it.
 
 ### Security
 
-- `Microsoft.OpenApi` raised to 2.7.5, clearing GHSA-v5pm-xwqc-g5wc (stack overflow on a circular
-  schema reference).
+- `Microsoft.OpenApi` resolves to 2.7.5 or later, clearing GHSA-v5pm-xwqc-g5wc (stack overflow on
+  a circular schema reference). `Microsoft.AspNetCore.OpenApi` 10.0.11 requires that floor itself,
+  so the service no longer carries a direct reference to hold it.
+- Testcontainers 4.15 brings SSH.NET 2026.0.0, clearing GHSA-q939-rpr3-3284 (arbitrary file write
+  through a recursive SCP download) from the test project; the image never contained it.
 
 ## [0.2.0] - 2026-07-06
 

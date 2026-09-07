@@ -17,8 +17,8 @@
 #   * TINYTEX_TLNET_SNAPSHOT must track TINYTEX_VERSION (its tlmgr revision has to
 #     match the bundle's — see the tinytex-builder stage).
 # ----------------------------------------------------------------------------
-ARG DOTNET_ASPNET_IMAGE=mcr.microsoft.com/dotnet/aspnet:10.0-resolute@sha256:0aa8645b7e7c83630bdb5ca096a91e2e4a356e9236ec1c01bb471a7410bb18a9
-ARG DOTNET_SDK_IMAGE=mcr.microsoft.com/dotnet/sdk:10.0-resolute@sha256:196f61c6262aa890f41dd654ff52d3b995187124a37778fb990ed0c31c26da44
+ARG DOTNET_ASPNET_IMAGE=mcr.microsoft.com/dotnet/aspnet:10.0-resolute@sha256:e12b240891f34144edd813a11e86649dca6120165adfb5ad0a29bbde6753a975
+ARG DOTNET_SDK_IMAGE=mcr.microsoft.com/dotnet/sdk:10.0-resolute@sha256:17d5b93701079599eb771cf72f2aaa45a5826d9802f2cfbae565fd2eecf72073
 ARG ALPINE_GIT_IMAGE=alpine/git:v2.52.0@sha256:4a0e72d49596a1f5d3701aeedafdadc5c0da4062be4657c7bdc4017387f591cc
 ARG TINYTEX_VERSION=2026.05
 ARG TINYTEX_TLNET_SNAPSHOT=2026/05/02

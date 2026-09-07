@@ -9,14 +9,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="AngleSharp" Version="1.5.2" />
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
-    <!-- Not used directly. Microsoft.AspNetCore.OpenApi 10.0.10 resolves
-         Microsoft.OpenApi to 2.0.0, which carries GHSA-v5pm-xwqc-g5wc (stack
-         overflow on a circular schema reference while parsing an OpenAPI
-         document); 2.7.5 is the first patched 2.x. This reference raises the
-         transitive floor past it. -->
-    <PackageReference Include="Microsoft.OpenApi" Version="2.7.5" />
+    <PackageReference Include="AngleSharp" Version="1.8.0" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0" />
   </ItemGroup>
 
