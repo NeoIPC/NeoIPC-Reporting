@@ -30,8 +30,9 @@ namespace NeoIPC.Reporting.Tests;
 ///   <c>NEOIPC_DHIS2_ADMIN_PASS</c> — DHIS2 credentials (default
 ///   <c>admin</c> / <c>district</c>).</description></item>
 ///   <item><description><c>NEOIPC_TEST_DEPARTMENT_CODE</c> — the seeded
-///   test department's org-unit code; render tests self-skip when it is
-///   unset (i.e. the instance has not been seeded).</description></item>
+///   test department's org-unit code (default <c>AT_TEST_TEST</c>, the play
+///   package's regular test department); the render test self-skips when no
+///   organisation unit carries that code.</description></item>
 /// </list>
 /// <para>
 /// Why a real credential login and not basic auth: the reporting service
@@ -61,9 +62,45 @@ public static class ExternalDhis2Fixture
     public static string AdminPass =>
         Environment.GetEnvironmentVariable("NEOIPC_DHIS2_ADMIN_PASS") ?? "district";
 
-    /// <summary>The seeded test department's org-unit code, or null when unseeded.</summary>
-    public static string? TestDepartmentCode =>
-        Environment.GetEnvironmentVariable("NEOIPC_TEST_DEPARTMENT_CODE");
+    /// <summary>
+    /// The seeded test department's org-unit code: <c>NEOIPC_TEST_DEPARTMENT_CODE</c>,
+    /// or <c>AT_TEST_TEST</c>, the play package's regular test department.
+    /// </summary>
+    public static string TestDepartmentCode =>
+        Environment.GetEnvironmentVariable("NEOIPC_TEST_DEPARTMENT_CODE") ?? "AT_TEST_TEST";
+
+    /// <summary>
+    /// Whether DHIS2 holds an organisation unit with <paramref name="code"/>, looked
+    /// up by code through the given session. False when the lookup fails, so the
+    /// render test can skip with a message naming the code rather than fail on the
+    /// render's own refusal.
+    /// </summary>
+    public static async Task<bool> OrgUnitExistsAsync(
+        string jsessionId, string code, CancellationToken ct = default)
+    {
+        try
+        {
+            using var client = new HttpClient
+            {
+                BaseAddress = new Uri(Dhis2BaseUrl + "/"),
+                Timeout = TimeSpan.FromSeconds(15),
+            };
+            client.DefaultRequestHeaders.Add("Cookie", $"JSESSIONID={jsessionId}");
+            using var resp = await client.GetAsync(
+                $"api/organisationUnits?filter=code:eq:{Uri.EscapeDataString(code)}&fields=id&paging=false",
+                ct);
+            if (resp.StatusCode != HttpStatusCode.OK) return false;
+
+            using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+            return doc.RootElement.TryGetProperty("organisationUnits", out var units)
+                && units.ValueKind == JsonValueKind.Array
+                && units.GetArrayLength() > 0;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
+        {
+            return false;
+        }
+    }
 
     /// <summary>
     /// Probes the reporting service via its anonymous

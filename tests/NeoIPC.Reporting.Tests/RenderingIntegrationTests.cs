@@ -16,8 +16,9 @@ namespace NeoIPC.Reporting.Tests;
 /// the reporting service is not reachable or a DHIS2 session cannot be
 /// established, so <c>dotnet test --filter Category=Integration</c> is safe
 /// to run with no stack up — it reports "ignored", not "failed". The
-/// render test additionally skips unless the instance has been seeded
-/// (<c>NEOIPC_TEST_DEPARTMENT_CODE</c> set).
+/// render test additionally skips unless the instance holds the test
+/// department (<c>AT_TEST_TEST</c>, or the code
+/// <c>NEOIPC_TEST_DEPARTMENT_CODE</c> names).
 /// </remarks>
 [TestFixture]
 [Category("Integration")]
@@ -83,18 +84,20 @@ public class RenderingIntegrationTests
     public async Task PartnerReport_Online_Pdf_RendersForSeededDepartment()
     {
         var department = ExternalDhis2Fixture.TestDepartmentCode;
-        if (string.IsNullOrEmpty(department))
+        if (!await ExternalDhis2Fixture.OrgUnitExistsAsync(_session, department))
             Assert.Ignore(
-                "NEOIPC_TEST_DEPARTMENT_CODE is not set — the instance has not been seeded. " +
-                "Seed the DHIS2 instance with NeoIPC metadata + synthetic data first.");
+                $"No organisation unit with code '{department}' at {ExternalDhis2Fixture.Dhis2BaseUrl}. " +
+                "Seed the instance with the play package, or set NEOIPC_TEST_DEPARTMENT_CODE to a " +
+                "seeded test department's code.");
 
         using var client = ExternalDhis2Fixture.CreateReportingClient(_session);
         client.Timeout = TimeSpan.FromMinutes(10); // live import + R/Quarto render
 
-        // The seed targets a synthetic *test* department ({CC}_TEST_TEST), which the
-        // report excludes by default (include_test_data = false) — so the department
-        // would resolve to zero org units and the DHIS2 query would 409. Request test
-        // data so the render resolves the seeded department.
+        // A department inside the TEST_UNITS group is excluded by the report's
+        // default (include_test_data = false), so it would resolve to zero org
+        // units and the DHIS2 query would 409. Requesting test data admits such a
+        // department and changes nothing for a regular one like the default
+        // AT_TEST_TEST, so the render works whichever kind the code names.
         using var request = new HttpRequestMessage(HttpMethod.Get,
             $"partner-report?unitCodes={Uri.EscapeDataString(department!)}&includeTestData=true");
         request.Headers.Add("Accept", "application/pdf");

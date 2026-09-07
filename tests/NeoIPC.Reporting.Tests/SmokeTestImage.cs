@@ -1,0 +1,162 @@
+using System.ComponentModel;
+using System.Diagnostics;
+using NUnit.Framework;
+
+namespace NeoIPC.Reporting.Tests;
+
+/// <summary>
+/// The image the <c>Category=Container</c> fixtures run: the tag
+/// <c>NEOIPC_REPORTING_IMAGE_TAG</c> names when it is set, otherwise
+/// <c>neoipc-reporting:smoke-test</c>, built from this repository's Dockerfile
+/// by the test run itself.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Building here is what lets a plain <c>dotnet test</c> or a Test Explorer run
+/// exercise the image with no separate step to remember. The build runs on every
+/// such run, not only when the tag is missing: an image left over from an earlier
+/// build tests the sources as they were then, and a fixture that reused it would
+/// report on code that no longer exists. BuildKit's layer cache keeps an unchanged
+/// rebuild to seconds; the first build on a machine fetches the R, TeX Live and
+/// Quarto toolchains and the report sources from GitHub, and takes tens of minutes.
+/// Naming a tag opts out of the build: the CI smoke job builds with its own inputs
+/// and names the result, and a developer can point at any built image the same way.
+/// </para>
+/// <para>
+/// No Docker to talk to is a skip, as the fixtures treat an unreachable daemon; a
+/// build that fails is a failure, since the image is what the category verifies.
+/// </para>
+/// </remarks>
+static class SmokeTestImage
+{
+    const string DefaultTag = "neoipc-reporting:smoke-test";
+    const string DockerfilePath = "src/NeoIPC.Reporting/Dockerfile";
+    const string SolutionFileName = "NeoIPC-Reporting.sln";
+
+    static readonly SemaphoreSlim Gate = new(1, 1);
+    static bool _built;
+
+    /// <summary>
+    /// Returns the tag to run, building it first when <c>NEOIPC_REPORTING_IMAGE_TAG</c>
+    /// names none. Ignores the calling fixture when Docker is unavailable.
+    /// </summary>
+    public static async Task<string> ResolveAsync()
+    {
+        var configured = Environment.GetEnvironmentVariable("NEOIPC_REPORTING_IMAGE_TAG");
+        if (!string.IsNullOrWhiteSpace(configured)) return configured;
+
+        // Both container fixtures resolve the image; the second finds it built.
+        await Gate.WaitAsync();
+        try
+        {
+            if (!_built)
+            {
+                await BuildAsync();
+                _built = true;
+            }
+        }
+        finally
+        {
+            Gate.Release();
+        }
+
+        return DefaultTag;
+    }
+
+    static async Task BuildAsync()
+    {
+        var root = RepositoryRoot();
+        var progress = TestContext.Progress;
+
+        var daemon = await RunDockerAsync(root, ["version", "--format", "{{.Server.Version}}"], _ => { });
+        if (daemon is null)
+            Assert.Ignore("Category=Container tests need Docker: no `docker` command was found on PATH.");
+        if (daemon.ExitCode != 0)
+            Assert.Ignore(
+                "Category=Container tests need a running Docker daemon: `docker version` could not " +
+                $"reach one. {daemon.LastLines}");
+
+        progress.WriteLine(
+            $"Building {DefaultTag} from {DockerfilePath} (BuildKit cache; the first build on a " +
+            "machine takes tens of minutes)...");
+        var build = await RunDockerAsync(root, ["build", "-f", DockerfilePath, "-t", DefaultTag, "."],
+            progress.WriteLine);
+        if (build is null || build.ExitCode != 0)
+            Assert.Fail(
+                $"`docker build` of {DefaultTag} exited {build?.ExitCode}. Last output:\n{build?.LastLines}");
+    }
+
+    /// <summary>
+    /// The directory holding the solution file, found by walking up from the test
+    /// assembly, so the build context is the same whether the run starts in an IDE
+    /// or from <c>dotnet test</c> in any directory.
+    /// </summary>
+    static string RepositoryRoot()
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, SolutionFileName))) return dir.FullName;
+        }
+
+        throw new InvalidOperationException(
+            $"{SolutionFileName} was not found above {AppContext.BaseDirectory}; the container tests " +
+            "build the image from the repository root and need to run from a checkout.");
+    }
+
+    sealed record DockerResult(int ExitCode, string LastLines);
+
+    /// <summary>
+    /// Runs <c>docker</c> with <paramref name="arguments"/>, forwarding every output
+    /// line to <paramref name="onLine"/> as it arrives and keeping the last lines for
+    /// a failure message. Returns null when no <c>docker</c> executable exists.
+    /// </summary>
+    static async Task<DockerResult?> RunDockerAsync(
+        string workingDirectory, string[] arguments, Action<string> onLine)
+    {
+        var startInfo = new ProcessStartInfo("docker")
+        {
+            WorkingDirectory = workingDirectory,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+        foreach (var argument in arguments) startInfo.ArgumentList.Add(argument);
+        // The Dockerfile's `# syntax=` directive needs BuildKit, which every current
+        // Docker enables by default; naming it keeps a `DOCKER_BUILDKIT=0` in the
+        // caller's environment from handing the build to the classic builder.
+        startInfo.Environment["DOCKER_BUILDKIT"] = "1";
+
+        using var process = new Process { StartInfo = startInfo };
+        var tail = new Queue<string>();
+
+        void Capture(string? line)
+        {
+            if (line is null) return;
+            onLine(line);
+            lock (tail)
+            {
+                tail.Enqueue(line);
+                if (tail.Count > 40) tail.Dequeue();
+            }
+        }
+
+        process.OutputDataReceived += (_, e) => Capture(e.Data);
+        process.ErrorDataReceived += (_, e) => Capture(e.Data);
+        try
+        {
+            process.Start();
+        }
+        catch (Win32Exception)
+        {
+            return null;
+        }
+
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
+        await process.WaitForExitAsync();
+        lock (tail)
+        {
+            return new DockerResult(process.ExitCode, string.Join('\n', tail));
+        }
+    }
+}

@@ -114,4 +114,24 @@ public class OutputNegotiationTests
                 Accept("application/pdf;q=0", "application/json")), Is.False);
         });
     }
+
+    [Test]
+    public void AnyRenderedOutputIsAcceptable_TrueOnlyWhenAnHtmlOrPdfOutputIsAcceptable()
+    {
+        // This is the refusal a stored dataset earns before it is looked up, so it
+        // must not fire while any rendered output is on offer — a wildcard and a
+        // type range count — and must fire on a data-only or unsupported Accept,
+        // or on a rendered type the caller has marked q=0.
+        Assert.Multiple(() =>
+        {
+            Assert.That(OutputNegotiation.AnyRenderedOutputIsAcceptable(Accept("text/html")), Is.True);
+            Assert.That(OutputNegotiation.AnyRenderedOutputIsAcceptable(Accept("application/json", "application/pdf")), Is.True);
+            Assert.That(OutputNegotiation.AnyRenderedOutputIsAcceptable(Accept("*/*")), Is.True);
+            Assert.That(OutputNegotiation.AnyRenderedOutputIsAcceptable(Accept("text/*")), Is.True);
+            Assert.That(OutputNegotiation.AnyRenderedOutputIsAcceptable(Accept("application/json")), Is.False);
+            Assert.That(OutputNegotiation.AnyRenderedOutputIsAcceptable(Accept("application/xml")), Is.False);
+            Assert.That(OutputNegotiation.AnyRenderedOutputIsAcceptable(Accept("application/pdf;q=0", "application/json")), Is.False);
+            Assert.That(OutputNegotiation.AnyRenderedOutputIsAcceptable([]), Is.False);
+        });
+    }
 }

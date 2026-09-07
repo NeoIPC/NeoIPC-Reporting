@@ -25,25 +25,23 @@ namespace NeoIPC.Reporting.Tests;
 /// <c>Category=Integration</c> tests (<see cref="RenderingIntegrationTests"/>).
 /// </para>
 /// <para>
-/// The image tag is taken from the <c>NEOIPC_REPORTING_IMAGE_TAG</c>
-/// environment variable; defaults to <c>neoipc-reporting:smoke-test</c>
-/// to match the local docker-build invocation documented in the README.
-/// The image must already be built — this test does not build it.
+/// The image is the one <see cref="SmokeTestImage"/> resolves: the tag
+/// <c>NEOIPC_REPORTING_IMAGE_TAG</c> names, or <c>neoipc-reporting:smoke-test</c>
+/// built from this repository's Dockerfile by the run itself.
 /// </para>
 /// </remarks>
 [TestFixture]
 [Category("Container")]
 public class ParametersEndpointTests
 {
-    static readonly string ImageTag =
-        Environment.GetEnvironmentVariable("NEOIPC_REPORTING_IMAGE_TAG") ?? "neoipc-reporting:smoke-test";
-
     IContainer? _container;
     HttpClient? _http;
 
     [OneTimeSetUp]
     public async Task StartContainer()
     {
+        var imageTag = await SmokeTestImage.ResolveAsync();
+
         // Skip rather than fail when there is no Docker to talk to, matching
         // RenderingIntegrationTests' behaviour for an absent stack: a plain
         // `dotnet test` on a developer machine should report "ignored" for the
@@ -57,7 +55,7 @@ public class ParametersEndpointTests
         // verifying the thing it exists to verify.
         try
         {
-            _container = new ContainerBuilder(ImageTag)
+            _container = new ContainerBuilder(imageTag)
                 .WithPortBinding(8080, true)
                 .WithEnvironment("ASPNETCORE_HTTP_PORTS", "8080")
                 // Wait until the parameters endpoint returns 200 — this implies
@@ -74,9 +72,7 @@ public class ParametersEndpointTests
         }
         catch (DockerUnavailableException ex)
         {
-            Assert.Ignore(
-                $"Category=Container tests need a running Docker daemon and the '{ImageTag}' " +
-                $"image already built. {ex.Message}");
+            Assert.Ignore($"Category=Container tests need a running Docker daemon. {ex.Message}");
         }
 
         var port = _container!.GetMappedPublicPort(8080);

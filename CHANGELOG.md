@@ -30,7 +30,8 @@ product's own changelog, and here only as the pin that carries it.
   `hospitalFilter`, and the service passes it to the report; it takes effect once the pinned report
   sources carry it, which `reports-v0.0.1-alpha` does not: with that pin the JSON output ignores the
   filter, and a rendered output that carries it fails. A failed output negotiation is a coded `406`
-  rather than a bodiless `415`.
+  rather than a bodiless `415`, and a request whose dataset is stored or uploaded, but which accepts
+  no rendered output, is refused before any stored dataset is looked up.
 - The default `Reporting:Dhis2BaseUrl` is `http://dhis2-backend:8080`, the DHIS2 service's name in
   this repository's own compose file; a deployment that sets nothing follows it.
 - R and the `r-cran-*` packages track the current CRAN release again; the stopgap `r-base-core` pin

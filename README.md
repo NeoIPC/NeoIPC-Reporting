@@ -40,6 +40,8 @@ a department its results back.
   seeded DHIS2 + reporting stack (configured through the `NEOIPC_*`
   environment variables read by `ExternalDhis2Fixture`) and self-skips
   when the stack is unreachable (see `.github/workflows/build-and-test.yml`).
+  What each category needs, and how to run them from an IDE, is in
+  [`tests/NeoIPC.Reporting.Tests/README.md`](tests/NeoIPC.Reporting.Tests/README.md).
 - `compose.yml` — minimal stack: Postgres + DHIS2 + this service + Traefik.
 - `pinned-sources.yml` — the report-sources and neoipcr tags a released image bakes.
 
@@ -49,8 +51,8 @@ a department its results back.
 # Unit + generator tests (no Docker needed)
 dotnet test --filter "Category!=Integration&Category!=Container"
 
-# Container smoke tests (build the image in isolation; uses
-# NEOIPC_REPORTING_IMAGE_TAG, defaults to neoipc-reporting:smoke-test)
+# Container smoke tests: build neoipc-reporting:smoke-test from the Dockerfile
+# and run it, or run the image NEOIPC_REPORTING_IMAGE_TAG names
 dotnet test --filter "Category=Container"
 
 # Integration tests against a live, seeded stack (self-skip when unreachable;
