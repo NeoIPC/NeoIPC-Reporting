@@ -19,7 +19,7 @@
 # ----------------------------------------------------------------------------
 ARG DOTNET_ASPNET_IMAGE=mcr.microsoft.com/dotnet/aspnet:10.0-resolute@sha256:e12b240891f34144edd813a11e86649dca6120165adfb5ad0a29bbde6753a975
 ARG DOTNET_SDK_IMAGE=mcr.microsoft.com/dotnet/sdk:10.0-resolute@sha256:17d5b93701079599eb771cf72f2aaa45a5826d9802f2cfbae565fd2eecf72073
-ARG ALPINE_GIT_IMAGE=alpine/git:v2.52.0@sha256:4a0e72d49596a1f5d3701aeedafdadc5c0da4062be4657c7bdc4017387f591cc
+ARG ALPINE_GIT_IMAGE=alpine/git:v2.54.0@sha256:6f3b5029566da8e90b24945933dcd806be866b64b1e706f51828bf84faccf21b
 ARG TINYTEX_VERSION=2026.05
 ARG TINYTEX_TLNET_SNAPSHOT=2026/05/02
 ARG QUARTO_VERSION=1.10.18
