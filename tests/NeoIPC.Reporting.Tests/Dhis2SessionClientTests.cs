@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net;
 using Microsoft.Extensions.Logging.Abstractions;
 using NeoIPC.Reporting.Authorization;
 using NUnit.Framework;
@@ -32,6 +33,82 @@ public class Dhis2SessionClientTests
         }
     }
 
+    /// <summary>A DHIS2 that sends its headers and then goes quiet: the body never arrives.</summary>
+    /// <remarks>
+    /// A different outage from <see cref="NeverAnsweringHandler"/>, and one that handler
+    /// cannot stand in for: it stalls before the headers, which every completion option
+    /// already covers. <see cref="HttpClient.Timeout"/> spans a streamed response only
+    /// until its headers are in, so a stall after them is bounded by nothing unless the
+    /// client buffers the body. <see cref="BodyReadWasCancelled"/> is what records that
+    /// the timeout reached the body rather than stopping at the headers.
+    /// </remarks>
+    sealed class HeadersThenSilenceHandler : HttpMessageHandler
+    {
+        readonly SilentBody _body = new();
+
+        /// <summary>Whether the read of the body was cancelled, rather than left to run.</summary>
+        public bool BodyReadWasCancelled => _body.ReadWasCancelled;
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StreamContent(_body),
+            });
+
+        /// <summary>
+        /// A readable stream that yields nothing for far longer than the timeout under
+        /// test and then ends. It ends rather than stalling forever so that a regression
+        /// fails this test instead of hanging it.
+        /// </summary>
+        sealed class SilentBody : Stream
+        {
+            public bool ReadWasCancelled { get; private set; }
+
+            public override async ValueTask<int> ReadAsync(
+                Memory<byte> buffer, CancellationToken cancellationToken)
+            {
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    ReadWasCancelled = true;
+                    throw;
+                }
+                return 0;
+            }
+
+            // Stream's byte[] overload otherwise routes through the synchronous Read below.
+            public override Task<int> ReadAsync(
+                byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+                ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+            public override bool CanRead => true;
+            public override bool CanSeek => false;
+            public override bool CanWrite => false;
+            public override long Length => throw new NotSupportedException();
+
+            public override long Position
+            {
+                get => throw new NotSupportedException();
+                set => throw new NotSupportedException();
+            }
+
+            public override void Flush() { }
+
+            public override int Read(byte[] buffer, int offset, int count) =>
+                throw new NotSupportedException("the body is read asynchronously");
+
+            public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+            public override void SetLength(long value) => throw new NotSupportedException();
+
+            public override void Write(byte[] buffer, int offset, int count) =>
+                throw new NotSupportedException();
+        }
+    }
+
     // An address literal from the documentation range, so building the endpoint
     // validates it without a name lookup; the handler above never connects to it.
     static Dhis2SessionClient ClientOver(HttpClient http) =>
@@ -50,6 +127,29 @@ public class Dhis2SessionClientTests
 
         Assert.That(info, Is.Null,
             "a DHIS2 that does not answer in time cannot vouch for the session");
+    }
+
+    [Test]
+    public async Task GetUserInfo_WhenDhis2GoesQuietAfterTheHeaders_IsNotAuthenticated()
+    {
+        var handler = new HeadersThenSilenceHandler();
+        using var http = new HttpClient(handler)
+        {
+            Timeout = TimeSpan.FromMilliseconds(200),
+        };
+
+        var info = await ClientOver(http).GetUserInfoAsync("session", CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(info, Is.Null,
+                "a DHIS2 that stops after its headers cannot vouch for the session either");
+            // The discriminating assertion: a null result alone does not distinguish the two,
+            // because a body that ends empty fails to parse and returns null as well — only
+            // minutes later, whenever DHIS2 chose to let go.
+            Assert.That(handler.BodyReadWasCancelled, Is.True,
+                "the client's timeout has to reach the body: streamed, it ends at the headers");
+        });
     }
 
     [Test]

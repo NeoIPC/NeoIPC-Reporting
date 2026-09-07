@@ -153,8 +153,11 @@ static class SmokeTestImage
         }
         // Only "not found" means there is no docker to run: code 2 is ENOENT on Unix and
         // ERROR_FILE_NOT_FOUND on Windows, 3 is ERROR_PATH_NOT_FOUND. Any other start
-        // failure — a docker that is not executable, access denied — propagates and
-        // fails the fixture with its own message instead of being reported as a skip.
+        // failure — access denied, an exec format error — propagates and fails the fixture
+        // with its own message instead of being reported as a skip. A docker on PATH that
+        // is not executable is not one of those on Unix: the bare name goes through a PATH
+        // search that skips a candidate it cannot execute, so the start fails with ENOENT
+        // and is reported here as no docker at all.
         catch (Win32Exception ex) when (ex.NativeErrorCode is 2 or 3)
         {
             return null;
