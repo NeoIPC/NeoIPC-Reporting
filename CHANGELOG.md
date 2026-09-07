@@ -36,12 +36,12 @@ product's own changelog, and here only as the pin that carries it.
 - R and the `r-cran-*` packages track the current CRAN release again; the stopgap `r-base-core` pin
   is gone.
 - Dependencies moved to current releases, among them Roslyn 5.9.0 for the source generator,
-  AngleSharp 1.8.0, Testcontainers 4.15 and `Microsoft.AspNetCore.OpenApi` 10.0.11.
+  AngleSharp 1.8.0, Testcontainers 4.15, `Microsoft.AspNetCore.OpenApi` 10.0.11 and the
+  `alpine/git` image that clones the report sources, 2.54.0.
 - The image builds on the .NET SDK 10.0.400 and runs on ASP.NET Core 10.0.11. The generator's
-  Roslyn can be no newer than the compiler in the SDK image, so the two move together. The
-  `alpine/git` image that clones the report sources is 2.54.0.
-- TinyTeX 2026.09, its packages installed from the TeX Live snapshot of 2026-08-31, the one whose
-  `tlmgr` revision equals the bundle's.
+  Roslyn can be no newer than the compiler in the SDK image, so the two move together.
+- TinyTeX 2026.09, its packages installed from the TeX Live snapshot of 2026-08-31, the earliest
+  day whose `texlive-scripts` revision matches the bundle's.
 
 ### Fixed
 

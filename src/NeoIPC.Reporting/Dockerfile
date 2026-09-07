@@ -14,8 +14,8 @@
 #   * The TinyTeX / Quarto `ADD --checksum` values are version-coupled and stay
 #     inline at their ADD lines — bump the checksum together with the matching
 #     version ARG here.
-#   * TINYTEX_TLNET_SNAPSHOT must track TINYTEX_VERSION (its tlmgr revision has to
-#     match the bundle's — see the tinytex-builder stage).
+#   * TINYTEX_TLNET_SNAPSHOT must track TINYTEX_VERSION: the archive day has to fall
+#     inside the window tlmgr accepts for the bundle — see the tinytex-builder stage.
 # ----------------------------------------------------------------------------
 ARG DOTNET_ASPNET_IMAGE=mcr.microsoft.com/dotnet/aspnet:10.0-resolute@sha256:e12b240891f34144edd813a11e86649dca6120165adfb5ad0a29bbde6753a975
 ARG DOTNET_SDK_IMAGE=mcr.microsoft.com/dotnet/sdk:10.0-resolute@sha256:17d5b93701079599eb771cf72f2aaa45a5826d9802f2cfbae565fd2eecf72073
@@ -329,22 +329,25 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     rm -f /etc/apt/apt.conf.d/docker-clean && \
     apt-get -qq update && \
     apt-get -qq install --no-install-recommends perl wget fontconfig xz-utils gnupg
-# TinyTeX v2026.09 (published 2026-09-01) ships TeX Live 2026's tlmgr as texlive-scripts r80134. The install
-# below pins tlmgr to the frozen tlnet snapshot whose texlive-scripts revision MATCHES the bundle's — the
-# 2026-08-31 archive; 09-01 already carries r80140. tlmgr enforces the match in both directions: a repository
-# whose texlive-scripts is older than the local one is refused as "older than the local installation", and
-# one whose critical packages are newer stops `install` with "tlmgr itself needs to be updated". When bumping
-# the bundle, read `revision` under `name texlive-scripts` in its tlpkg/texlive.tlpdb and in the archive's
-# tlpkg/texlive.tlpdb.xz for the dates around the release, and pin the date whose revision is equal.
+# TinyTeX v2026.09 (published 2026-09-01) carries texlive.infra r79982, which ships tlmgr, and texlive-scripts
+# r80134. tlmgr bounds the repository it accepts on those two packages: one whose texlive-scripts is older
+# than the local one is refused as "older than the local installation", and `install` stops when
+# texlive.infra is newer there ("tlmgr itself needs to be updated" — on Linux texlive.infra is the one
+# package tlmgr treats as critical). 2026-08-31 is the earliest archive day whose texlive-scripts is not
+# older than the bundle's (08-30 still carries r80127), and its texlive.infra equals the bundle's; the
+# earliest such day keeps the packages installed here closest to the bundle's own. When bumping the bundle,
+# read `revision` under `name texlive-scripts` and `name texlive.infra` in its tlpkg/texlive.tlpdb and in
+# the archive's tlpkg/texlive.tlpdb.xz for the days around the release, and pin the earliest day whose
+# texlive-scripts is >= the bundle's while its texlive.infra is <= the bundle's.
 ADD --chmod=644 --checksum=sha256:cf9a4d19742eeb6d54a3de91fb5df071360f23877cafa5b39893421b32ca6295 \
     https://github.com/rstudio/tinytex-releases/releases/download/v${TINYTEX_VERSION}/TinyTeX-1-linux-x86_64-v${TINYTEX_VERSION}.tar.xz \
     /tmp/TinyTeX.tar.xz
 USER $APP_UID
-# Pin tlmgr to the frozen tlnet snapshot dated to this bundle instead of the rolling tlnet.yihui.org mirror.
-# The rolling mirror advances its tlmgr revision past the bundle's, so `tlmgr install` self-terminates
-# demanding `tlmgr update --self`; the dated archive snapshot matches the bundle's tlmgr, so install just
-# works — and being immutable it makes the installed package set reproducible build-to-build. gnupg (added
-# above) lets tlmgr verify the snapshot's signature rather than warning "gpg unavailable".
+# Pin tlmgr to the frozen tlnet snapshot chosen above instead of the rolling tlnet.yihui.org mirror. The
+# rolling mirror eventually advances texlive.infra past the bundle's, from which point `tlmgr install`
+# self-terminates demanding `tlmgr update --self`; the dated archive stays inside the window tlmgr accepts,
+# so install just works — and being immutable it makes the installed package set reproducible build-to-build.
+# gnupg (added above) lets tlmgr verify the snapshot's signature rather than warning "gpg unavailable".
 # Archival PDF (PDF/A-4) support for the reports' `pdf-standard`, which Quarto emits as
 # \DocumentMetadata{pdfstandard={a-4}, xmp=true} on LuaLaTeX. Note there is no `tagging=on`: Quarto adds
 # that only for the standards that require tagged structure (a-2a, a-3a, ua-1, ua-2), and the reports

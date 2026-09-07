@@ -168,7 +168,11 @@ jobs:
     # Validate that the Dockerfile builds without running the full
     # integration suite. --target r-runtime exercises the shared parent
     # stage the r-runtime refactor introduced; --target build exercises
-    # the .NET build stage and everything it transitively pulls in.
+    # the .NET build stage and everything it transitively pulls in;
+    # --target tinytex-builder installs the TeX packages from the pinned
+    # snapshot, which is where a TinyTeX bump fails when its checksum or
+    # snapshot is wrong. Nothing else on a pull request builds that stage:
+    # the final image is assembled only by the dispatch-only container job.
     name: Dockerfile sanity build
     runs-on: ubuntu-latest
     steps:
@@ -187,6 +191,13 @@ jobs:
           -f src/NeoIPC.Reporting/Dockerfile
           --target build
           -t neoipc-reporting:build
+          .
+      - name: Build tinytex-builder stage
+        run: >
+          docker build
+          -f src/NeoIPC.Reporting/Dockerfile
+          --target tinytex-builder
+          -t neoipc-reporting:tinytex-builder
           .
 
   container:
