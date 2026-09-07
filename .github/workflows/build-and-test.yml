@@ -169,10 +169,12 @@ jobs:
     # integration suite. --target r-runtime exercises the shared parent
     # stage the r-runtime refactor introduced; --target build exercises
     # the .NET build stage and everything it transitively pulls in;
-    # --target tinytex-builder installs the TeX packages from the pinned
-    # snapshot, which is where a TinyTeX bump fails when its checksum or
-    # snapshot is wrong. Nothing else on a pull request builds that stage:
-    # the final image is assembled only by the dispatch-only container job.
+    # --target tinytex-builder and --target quarto-downloader carry the two
+    # ADD --checksum pins, and are where a bump fails when its checksum, or
+    # for TinyTeX its snapshot, is wrong. Those last two reach the image only
+    # through the stage it is assembled from, and no pull-request job
+    # assembles it — that is the dispatch-only container job and the release
+    # workflow — so without these steps a bad pin first surfaces on a tag.
     name: Dockerfile sanity build
     runs-on: ubuntu-latest
     steps:
@@ -198,6 +200,13 @@ jobs:
           -f src/NeoIPC.Reporting/Dockerfile
           --target tinytex-builder
           -t neoipc-reporting:tinytex-builder
+          .
+      - name: Build quarto-downloader stage
+        run: >
+          docker build
+          -f src/NeoIPC.Reporting/Dockerfile
+          --target quarto-downloader
+          -t neoipc-reporting:quarto-downloader
           .
 
   container:
