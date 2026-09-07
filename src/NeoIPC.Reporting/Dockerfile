@@ -20,8 +20,8 @@
 ARG DOTNET_ASPNET_IMAGE=mcr.microsoft.com/dotnet/aspnet:10.0-resolute@sha256:e12b240891f34144edd813a11e86649dca6120165adfb5ad0a29bbde6753a975
 ARG DOTNET_SDK_IMAGE=mcr.microsoft.com/dotnet/sdk:10.0-resolute@sha256:17d5b93701079599eb771cf72f2aaa45a5826d9802f2cfbae565fd2eecf72073
 ARG ALPINE_GIT_IMAGE=alpine/git:v2.54.0@sha256:6f3b5029566da8e90b24945933dcd806be866b64b1e706f51828bf84faccf21b
-ARG TINYTEX_VERSION=2026.05
-ARG TINYTEX_TLNET_SNAPSHOT=2026/05/02
+ARG TINYTEX_VERSION=2026.09
+ARG TINYTEX_TLNET_SNAPSHOT=2026/08/31
 ARG QUARTO_VERSION=1.10.18
 # R (r-base-core) and the r-cran-* packages are deliberately NOT pinned in this inventory:
 # r2u is a rolling current-CRAN mirror with no dated snapshots and no old-version retention,
@@ -329,12 +329,14 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     rm -f /etc/apt/apt.conf.d/docker-clean && \
     apt-get -qq update && \
     apt-get -qq install --no-install-recommends perl wget fontconfig xz-utils gnupg
-# TinyTeX v2026.05 (published 2026-05-01) ships TeX Live 2026's tlmgr (texlive-scripts r78861). The install
-# below pins tlmgr to the frozen tlnet snapshot whose tlmgr revision MATCHES this bundle's — the 2026-05-02
-# archive (the 05-01 archive carries r78852, one revision too old, which tlmgr rejects as "older than local").
-# When bumping this bundle, find the matching snapshot date the same way: tlmgr reports "older than local
-# installation" if the pin is too old and "tlmgr itself needs to be updated" if it is too new.
-ADD --chmod=644 --checksum=sha256:ef6c552b2959744f449213fb124e58954a235e7d41ad191e48080869728ae451 \
+# TinyTeX v2026.09 (published 2026-09-01) ships TeX Live 2026's tlmgr as texlive-scripts r80134. The install
+# below pins tlmgr to the frozen tlnet snapshot whose texlive-scripts revision MATCHES the bundle's — the
+# 2026-08-31 archive; 09-01 already carries r80140. tlmgr enforces the match in both directions: a repository
+# whose texlive-scripts is older than the local one is refused as "older than the local installation", and
+# one whose critical packages are newer stops `install` with "tlmgr itself needs to be updated". When bumping
+# the bundle, read `revision` under `name texlive-scripts` in its tlpkg/texlive.tlpdb and in the archive's
+# tlpkg/texlive.tlpdb.xz for the dates around the release, and pin the date whose revision is equal.
+ADD --chmod=644 --checksum=sha256:cf9a4d19742eeb6d54a3de91fb5df071360f23877cafa5b39893421b32ca6295 \
     https://github.com/rstudio/tinytex-releases/releases/download/v${TINYTEX_VERSION}/TinyTeX-1-linux-x86_64-v${TINYTEX_VERSION}.tar.xz \
     /tmp/TinyTeX.tar.xz
 USER $APP_UID

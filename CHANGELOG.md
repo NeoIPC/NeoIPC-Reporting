@@ -40,6 +40,8 @@ product's own changelog, and here only as the pin that carries it.
 - The image builds on the .NET SDK 10.0.400 and runs on ASP.NET Core 10.0.11. The generator's
   Roslyn can be no newer than the compiler in the SDK image, so the two move together. The
   `alpine/git` image that clones the report sources is 2.54.0.
+- TinyTeX 2026.09, its packages installed from the TeX Live snapshot of 2026-08-31, the one whose
+  `tlmgr` revision equals the bundle's.
 
 ### Fixed
 
