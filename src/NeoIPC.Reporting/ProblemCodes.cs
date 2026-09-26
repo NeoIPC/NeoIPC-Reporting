@@ -31,6 +31,14 @@ public static class ProblemCodes
     public const string InvalidParameterValue = "invalid-parameter-value";
     public const string NoAcceptableOutput = "no-acceptable-output";
 
+    // Report render — Validation
+    /// <summary>
+    /// The <c>rules</c> parameter named an id the Validation Report's rule
+    /// catalogue does not know. The catalogue is what <c>GET /validation-report/rules</c>
+    /// lists, so a consumer can offer exactly the ids that will be accepted.
+    /// </summary>
+    public const string UnknownValidationRule = "unknown-validation-rule";
+
     // Authorization
     public const string InsufficientAuthority = "insufficient-authority";
 
