@@ -16,7 +16,7 @@ namespace NeoIPC.Reporting.Tests;
 /// the reporting service is not reachable or a DHIS2 session cannot be
 /// established, so <c>dotnet test --filter Category=Integration</c> is safe
 /// to run with no stack up — it reports "ignored", not "failed". The
-/// render test additionally skips unless the instance holds the test
+/// render tests additionally skip unless the instance holds the test
 /// department (<c>AT_TEST_TEST</c>, or the code
 /// <c>NEOIPC_TEST_DEPARTMENT_CODE</c> names).
 /// </remarks>
@@ -182,8 +182,10 @@ public class RenderingIntegrationTests
         using var client = ExternalDhis2Fixture.CreateReportingClient(_session);
         client.Timeout = TimeSpan.FromMinutes(10); // live import + R/Quarto render
 
-        // Rule 25 alone: the header names the rules not applied, which proves the
-        // `rules` parameter reached the report.
+        // Rule 25 alone: the header counts the rules applied and lists every other
+        // one as "<id> (<summary>)", separated by "; ". Rule 25 missing from that
+        // list while its neighbours 24 and 26 are in it proves that the rule the
+        // request named, and no other, reached the report.
         using var request = new HttpRequestMessage(HttpMethod.Get,
             $"validation-report?departmentFilter={Uri.EscapeDataString(department)}" +
             "&includeTestData=true&rules=25&fragmentMode=false");
@@ -196,8 +198,11 @@ public class RenderingIntegrationTests
         {
             Assert.That(resp.StatusCode, Is.EqualTo(HttpStatusCode.OK),
                 "the Validation Report must render for the seeded department");
-            Assert.That(html, Does.Contain("1 of "), "the header states the rules applied");
-            Assert.That(html, Does.Contain("the rules not applied are"));
+            Assert.That(html, Does.Match(@"\b1 of \d+ rules; the rules not applied are "),
+                "the header states that one rule was applied");
+            Assert.That(html, Does.Not.Contain("; 25 ("), "rule 25 was applied");
+            Assert.That(html, Does.Contain("; 24 (").And.Contain("; 26 ("),
+                "the rules either side of rule 25 were not applied");
         });
     }
 }

@@ -1,13 +1,14 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 
 namespace NeoIPC.Reporting;
 
 /// <summary>
-/// Minimal-API handlers for the two report-configuration endpoints the
-/// app reads to drive its forms: the content <b>presets</b> and the
-/// supported <b>locales</b>. Both derive from the report layer (the
-/// Surveillance-Toolkit tree mounted at
+/// Minimal-API handlers for the report-configuration endpoints the app
+/// reads to drive its forms: the content <b>presets</b>, the supported
+/// <b>locales</b> and the Validation Report's <b>rule catalogue</b>. All
+/// derive from the report layer (the Surveillance-Toolkit tree mounted at
 /// <see cref="ReportingOptions.ReportsSourceDir"/>) rather than from the
 /// .NET API surface, so they change with the report without an app or
 /// backend release.
@@ -98,22 +99,41 @@ public static class ReportConfigEndpoints
             language = resolved.Language;
         }
 
+        if (!TryReadRuleCatalogue(() => catalogue.Rules(language),
+                loggerFactory.CreateLogger(typeof(ReportConfigEndpoints)), out var rules, out var problem))
+            return problem;
+
+        return Results.Ok(new
+        {
+            rules = rules.Select(r => new { id = r.Id, summary = r.Summary }),
+        });
+    }
+
+    /// <summary>
+    /// Reads from the Validation Report's rule catalogue through
+    /// <paramref name="read"/>. When the report's string resources cannot be
+    /// read, the exception goes to <paramref name="logger"/> and
+    /// <paramref name="problem"/> is a 500 whose detail names no path: the
+    /// exception names one in the server's file system, which stays in the log.
+    /// </summary>
+    internal static bool TryReadRuleCatalogue<T>(
+        Func<T> read, ILogger logger,
+        [MaybeNullWhen(false)] out T value, [NotNullWhen(false)] out IResult? problem)
+    {
         try
         {
-            return Results.Ok(new
-            {
-                rules = catalogue.Rules(language).Select(r => new { id = r.Id, summary = r.Summary }),
-            });
+            value = read();
+            problem = null;
+            return true;
         }
-        // The exception names a path in the server's file system, which goes to
-        // the log rather than into the response.
         catch (Exception e) when (e is FileNotFoundException or InvalidOperationException)
         {
-            loggerFactory.CreateLogger(typeof(ReportConfigEndpoints))
-                .LogError(e, "The Validation Report's rule catalogue could not be read.");
-            return Results.Problem(statusCode: StatusCodes.Status500InternalServerError,
+            logger.LogError(e, "The Validation Report's rule catalogue could not be read.");
+            value = default;
+            problem = Results.Problem(statusCode: StatusCodes.Status500InternalServerError,
                 title: "Rule catalogue unavailable",
                 detail: "The Validation Report's rule catalogue could not be read from the report sources.");
+            return false;
         }
     }
 

@@ -356,6 +356,42 @@ public class NegativePathTests
     }
 
     [Test]
+    public async Task ValidationReport_WildcardAcceptWithoutLocale_Returns406()
+    {
+        // The report has no data output, so */* can be served only by a rendered
+        // output, and without a locale none can be rendered. A gate that counted a
+        // JSON output as acceptable would let the request through to the authority
+        // check, which refuses the placeholder session with a 403 instead.
+        var req = new HttpRequestMessage(HttpMethod.Get, "/validation-report");
+        req.Headers.Add("Cookie", "JSESSIONID=test-placeholder-session-id");
+        req.Headers.Add("Accept", "*/*");
+        // No Accept-Language header, and no ?locale=.
+
+        var response = await _http!.SendAsync(req);
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotAcceptable));
+    }
+
+    [Test]
+    public async Task ValidationReport_WellFormed_WithoutAuth_Returns403()
+    {
+        // The route carries no policy; the handler checks the authority itself,
+        // after every request-shape check. A known rule id passes the catalogue
+        // check, so the request reaches that authority check, which refuses the
+        // placeholder session. The body names the authority, telling this refusal
+        // apart from any other 403.
+        var response = await _http!.SendAsync(Get("/validation-report?rules=3"));
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
+            Assert.That(body, Does.Contain(ProblemCodes.InsufficientAuthority));
+            Assert.That(body, Does.Contain("F_NEOIPC_REPORT"));
+        });
+    }
+
+    [Test]
     public async Task ValidationReport_JsonOnly_Returns406WithCode()
     {
         var req = new HttpRequestMessage(HttpMethod.Get, "/validation-report");

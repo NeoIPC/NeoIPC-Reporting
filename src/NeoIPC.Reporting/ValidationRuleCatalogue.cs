@@ -38,7 +38,7 @@ public sealed record ValidationRule(int Id, string Summary);
 /// </remarks>
 public sealed class ValidationRuleCatalogue
 {
-    public const string ReportName = QuartoValidationReportProducer.ReportName;
+    const string ReportName = QuartoValidationReportProducer.ReportName;
     const string EnglishLanguage = "en";
 
     readonly IOptions<ReportingOptions> _options;
@@ -46,6 +46,11 @@ public sealed class ValidationRuleCatalogue
 
     sealed record CacheEntry(DateTime BaseStamp, DateTime OverlayStamp, ImmutableArray<ValidationRule> Rules);
 
+    /// <summary>
+    /// Creates the catalogue over the toolkit tree at
+    /// <see cref="ReportingOptions.ReportsSourceDir"/>. Nothing is read until
+    /// <see cref="Rules"/> or <see cref="Ids"/> is first asked for.
+    /// </summary>
     public ValidationRuleCatalogue(IOptions<ReportingOptions> options)
     {
         _options = options;

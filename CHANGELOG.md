@@ -31,13 +31,16 @@ product's own changelog, and here only as the pin that carries it.
   Which languages the report offers is governed by `RenderReadyLanguages`, as for the others.
 - `--emit-schemas` writes `validation-report.json` beside the other two schemas, and the parameter
   generator carries an `integer[]` report parameter as `int[]`.
+- `includeValidationSummaryTable` on `GET /partner-report`, `POST /partner-report` and
+  `GET /reference-report` switches the reports' data-validation summary table, the first section after
+  the header, which they show when the parameter is absent.
 
 ### Changed
 
-- The image sets EB Garamond from Octavio Pardo's completed static OTFs, pinned to a commit of their
-  repository, in place of Debian's `fonts-ebgaramond`, the unfinished original whose bold face lacks
-  the subscript digits, ≥ and −: the bold Q₁, Q₂ and Q₃ headers of the Partner and Reference Reports'
-  tables rendered as boxes.
+- The image sets EB Garamond from the completed static OTFs of the EBGaramond12 repository, pinned to
+  a commit and shipped with their SIL OFL licence, in place of Debian's `fonts-ebgaramond`, the
+  unfinished original release whose bold face lacks the subscript digits, ≥ and −: the bold Q₁, Q₂
+  and Q₃ headers of the Partner and Reference Reports' tables rendered as boxes.
 
 ## [0.3.0] - 2026-09-07
 

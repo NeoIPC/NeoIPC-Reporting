@@ -64,22 +64,10 @@ class ValidationReport
 
         if (rules.Length > 0)
         {
-            HashSet<int> known;
-            // The exception names a path in the server's file system, which goes
-            // to the log rather than into the response.
-            try
-            {
-                known = [.. catalogue.Ids];
-            }
-            catch (Exception e) when (e is FileNotFoundException or InvalidOperationException)
-            {
-                loggerFactory.CreateLogger<ValidationReport>()
-                    .LogError(e, "The Validation Report's rule catalogue could not be read.");
-                return Results.Problem(statusCode: StatusCodes.Status500InternalServerError,
-                    title: "Rule catalogue unavailable",
-                    detail: "The Validation Report's rule catalogue could not be read from the report sources.");
-            }
-            var unknown = rules.Where(id => !known.Contains(id)).Distinct().Order().ToArray();
+            if (!ReportConfigEndpoints.TryReadRuleCatalogue(() => catalogue.Ids,
+                    loggerFactory.CreateLogger<ValidationReport>(), out var ids, out var catalogueProblem))
+                return catalogueProblem;
+            var unknown = rules.Except(ids).Order().ToArray();
             if (unknown.Length > 0)
                 return ProblemDetailsHelper.BadRequest(
                     ProblemCodes.UnknownValidationRule,

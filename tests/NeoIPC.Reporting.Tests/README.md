@@ -11,8 +11,8 @@ machine.
 |---|---|---|
 | `Unit` | the service's own logic, in process | nothing |
 | `Generator` | the source generator's drift tests, driving Roslyn in process | nothing |
-| `Container` | `NegativePathTests`, `ParametersEndpointTests`: the built image, started in isolation through Testcontainers with no DHIS2 behind it; the first drives it with a placeholder session, the second anonymously | Docker. The run builds the image itself unless `NEOIPC_REPORTING_IMAGE_TAG` names one (below). |
-| `Integration` | `RenderingIntegrationTests`: the real authentication-and-render path against a running, seeded NeoIPC stack | the stack. The fixture skips when the reporting service is unreachable or DHIS2 refuses the login, and the render test skips when the test department is not there. |
+| `Container` | `NegativePathTests`, `ParametersEndpointTests`, `ImageFontTests`: the built image, started in isolation through Testcontainers with no DHIS2 behind it; `NegativePathTests` drives it with a placeholder session, `ParametersEndpointTests` anonymously, and `ImageFontTests` reads the fonts it installs through fontconfig inside the container | Docker. The run builds the image itself unless `NEOIPC_REPORTING_IMAGE_TAG` names one (below). |
+| `Integration` | `RenderingIntegrationTests`: the real authentication-and-render path against a running, seeded NeoIPC stack | the stack. The fixture skips when the reporting service is unreachable or DHIS2 refuses the login, and the render tests skip when the test department is not there. |
 
 ## Running everything from an IDE
 
@@ -29,7 +29,7 @@ Run the project as it is. With nothing set up beforehand:
   installs R, TeX Live and Quarto. The build output reaches the runner as progress messages,
   which Visual Studio shows in the test output pane and `dotnet test` shows from
   `--logger "console;verbosity=normal"` upwards. With no Docker on the machine, or no daemon
-  running, the two fixtures report ignored. The container has no DHIS2 behind it, and every
+  running, the three fixtures report ignored. The container has no DHIS2 behind it, and every
   request `NegativePathTests` sends carries a session cookie the service tries to validate there;
   on a machine whose resolver holds an unknown host name open instead of refusing it — a VPN's
   resolver can — each of those requests first waits out the service's five-second DHIS2 timeout,
@@ -75,4 +75,4 @@ All read by `ExternalDhis2Fixture`; the defaults match a local stack published o
 | `NEOIPC_DHIS2_BASE_URL` | `http://localhost:8080` | DHIS2, for the login |
 | `NEOIPC_REPORTING_BASE_URL` | `http://localhost:8080/neoipc/api` | the reporting API's mount |
 | `NEOIPC_DHIS2_ADMIN_USER` / `NEOIPC_DHIS2_ADMIN_PASS` | `admin` / `district` | the DHIS2 credentials |
-| `NEOIPC_TEST_DEPARTMENT_CODE` | `AT_TEST_TEST` | the seeded test department the render test reports on; the default is the play package's regular test department |
+| `NEOIPC_TEST_DEPARTMENT_CODE` | `AT_TEST_TEST` | the seeded test department the render tests report on; the default is the play package's regular test department |

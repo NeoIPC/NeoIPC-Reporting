@@ -69,6 +69,13 @@ public sealed partial record PartnerReportApiParameters : ReportRequestBase
     [RenderParameter("includeOutlierInterpretation")]
     public bool? IncludeOutlierInterpretation { get; init; }
 
+    /// <summary>
+    /// Whether the report shows its data-validation summary table, the first
+    /// section after the header; the report shows it when this is absent.
+    /// </summary>
+    [RenderParameter("includeValidationSummaryTable")]
+    public bool? IncludeValidationSummaryTable { get; init; }
+
     [RenderParameter("includeBirthWeightFigure")]
     public bool? IncludeBirthWeightFigure { get; init; }
 

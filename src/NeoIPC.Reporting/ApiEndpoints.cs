@@ -52,8 +52,10 @@ static class ApiEndpoints
             .WithMetadata(new PublicEndpoint("static source-generated parameter schema; no data"));
 
         // Report-layer configuration the app reads to drive its forms: content
-        // presets (runtime-read from the toolkit's presets.json) and supported
-        // locales (the report-language registry). Both gated at the report tier.
+        // presets (runtime-read from the toolkit's presets.json), supported
+        // locales (the report-language registry) and the Validation Report's
+        // rule catalogue (its content/_sR.yaml plus the language overlay). All
+        // gated at the report tier.
         app.MapGet("reference-report/presets",
                 (IOptions<ReportingOptions> o) =>
                     ReportConfigEndpoints.Presets(QuartoReferenceReportProducer.ReportName, o))

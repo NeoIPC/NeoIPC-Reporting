@@ -7,8 +7,8 @@ namespace NeoIPC.Reporting.Tests;
 /// <summary>
 /// The Validation Report's rule catalogue, read from a fixture toolkit tree:
 /// the English source alone, a translation overlaid per key with English for
-/// what it lacks, and the refusals of a source the report could not render
-/// from either.
+/// what it lacks, the refusals of a source the report could not render from
+/// either, and the re-read when either file changes.
 /// </summary>
 [TestFixture]
 [Category("Unit")]
@@ -109,6 +109,20 @@ public class ValidationRuleCatalogueTests
             Throws.InvalidOperationException.With.Message.Contains("rule 3 has no 'summary'"));
     }
 
+    [TestCase("\"\"")]
+    [TestCase("\"   \"")]
+    public void Rules_RefusesAnEnglishRuleWithAnEmptySummary(string summary)
+    {
+        WriteStrings("content", $"""
+            problems:
+              "3":
+                summary: {summary}
+            """);
+
+        Assert.That(() => Catalogue().Rules("en"),
+            Throws.InvalidOperationException.With.Message.Contains("rule 3 has an empty 'summary'"));
+    }
+
     [Test]
     public void Rules_RefusesARuleKeyThatIsNotAnId()
     {
@@ -149,5 +163,30 @@ public class ValidationRuleCatalogueTests
             Path.Combine(_root, "Validation-Report", "content", "_sR.yaml"), DateTime.UtcNow.AddMinutes(1));
 
         Assert.That(catalogue.Ids, Is.EqualTo(new[] { 3, 17, 25, 43 }));
+    }
+
+    [Test]
+    public void Rules_ReadsTheTranslationAgainWhenItChanges()
+    {
+        WriteStrings("content", English);
+        WriteStrings("content.de", """
+            problems:
+              "25":
+                summary: Eine Aufnahme ohne Aufnahmeformular.
+            """);
+        var catalogue = Catalogue();
+        Assert.That(catalogue.Rules("de").Single(r => r.Id == 25).Summary,
+            Is.EqualTo("Eine Aufnahme ohne Aufnahmeformular."));
+
+        WriteStrings("content.de", """
+            problems:
+              "25":
+                summary: Eine Einschreibung ohne Aufnahmeformular.
+            """);
+        File.SetLastWriteTimeUtc(
+            Path.Combine(_root, "Validation-Report", "content.de", "_sR.yaml"), DateTime.UtcNow.AddMinutes(1));
+
+        Assert.That(catalogue.Rules("de").Single(r => r.Id == 25).Summary,
+            Is.EqualTo("Eine Einschreibung ohne Aufnahmeformular."));
     }
 }
