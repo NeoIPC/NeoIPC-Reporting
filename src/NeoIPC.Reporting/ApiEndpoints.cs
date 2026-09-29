@@ -42,6 +42,14 @@ static class ApiEndpoints
                 Results.Ok(new { fields = PartnerReportApiParameters.Schema }))
             .WithName("GetPartnerReportParameters")
             .WithMetadata(new PublicEndpoint("static source-generated parameter schema; no data"));
+        app.MapGet("validation-report", ValidationReport.Get)
+            .WithName("GetValidationReport")
+            .WithMetadata(new InHandlerAuthorized("NeoIpcReport"))
+            .WithRequestTimeout(TimeSpan.FromSeconds(360));
+        app.MapGet("validation-report/parameters", () =>
+                Results.Ok(new { fields = ValidationReportApiParameters.Schema }))
+            .WithName("GetValidationReportParameters")
+            .WithMetadata(new PublicEndpoint("static source-generated parameter schema; no data"));
 
         // Report-layer configuration the app reads to drive its forms: content
         // presets (runtime-read from the toolkit's presets.json) and supported
@@ -65,6 +73,18 @@ static class ApiEndpoints
                 (ReportLanguageRegistry r) =>
                     ReportConfigEndpoints.Locales(QuartoPartnerReportProducer.ReportName, r))
             .WithName("GetPartnerReportLocales")
+            .RequireAuthorization("NeoIpcReport");
+        // The Validation Report has no presets; its form lists the rules instead,
+        // read from the report's own string resources.
+        app.MapGet("validation-report/locales",
+                (ReportLanguageRegistry r) =>
+                    ReportConfigEndpoints.Locales(QuartoValidationReportProducer.ReportName, r))
+            .WithName("GetValidationReportLocales")
+            .RequireAuthorization("NeoIpcReport");
+        app.MapGet("validation-report/rules",
+                (string? locale, ValidationRuleCatalogue c, ReportLanguageRegistry r, ILoggerFactory l) =>
+                    ReportConfigEndpoints.ValidationRules(locale, c, r, l))
+            .WithName("GetValidationReportRules")
             .RequireAuthorization("NeoIpcReport");
 
         // Report-tier listing — partners pick a referenceDataId from this

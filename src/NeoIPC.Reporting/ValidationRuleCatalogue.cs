@@ -116,8 +116,15 @@ public sealed class ValidationRuleCatalogue
     static SortedDictionary<int, string> ReadSummaries(string path, bool complete)
     {
         var yaml = new YamlStream();
-        using (var reader = new StreamReader(path))
+        try
+        {
+            using var reader = new StreamReader(path);
             yaml.Load(reader);
+        }
+        catch (YamlDotNet.Core.YamlException e)
+        {
+            throw Malformed(path, $"it is not valid YAML ({e.Message})");
+        }
 
         if (yaml.Documents.Count == 0 || yaml.Documents[0].RootNode is not YamlMappingNode root)
             throw Malformed(path, "the document is not a mapping");

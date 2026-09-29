@@ -24,7 +24,8 @@ using NeoIPC.Reporting.Resources;
 // <Report>ApiParameters.Schema arrays to JSON files in <dir>, then
 // exits without starting the web host. The neoipc-app repository vendors
 // these snapshots and runs a CI drift check against them. The file names
-// match the form spec keys: `partner-report.json`, `reference-report.json`.
+// match the form spec keys: `partner-report.json`, `reference-report.json`,
+// `validation-report.json`.
 if (args.Length >= 2 && args[0] == "--emit-schemas")
 {
     var outDir = args[1];
@@ -49,6 +50,10 @@ if (args.Length >= 2 && args[0] == "--emit-schemas")
         Path.Combine(outDir, "reference-report.json"),
         JsonSerializer.Serialize(
             new { fields = ReferenceReportApiParameters.Schema }, jsonOpts));
+    File.WriteAllText(
+        Path.Combine(outDir, "validation-report.json"),
+        JsonSerializer.Serialize(
+            new { fields = ValidationReportApiParameters.Schema }, jsonOpts));
     return;
 }
 
@@ -82,6 +87,7 @@ builder.Services.AddOptions<ReportingOptions>()
             => Path.IsPathRooted(value) ? value : Path.GetFullPath(value, contentRoot);
     });
 builder.Services.AddSingleton<ReportLanguageRegistry>();
+builder.Services.AddSingleton<ValidationRuleCatalogue>();
 builder.Services.AddSingleton(sp =>
     Dhis2Endpoint.Build(sp.GetRequiredService<IOptions<ReportingOptions>>().Value.Dhis2BaseUrl));
 builder.Services.AddHostedService<ReportingWarmupHostedService>();

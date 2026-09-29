@@ -11,9 +11,9 @@
 #     still pulls resolute security updates for the apt-managed libraries.
 #   * Version ARGs hold the bare number (no leading `v`); the `v` is prepended at
 #     the URL where the upstream tag carries one (TinyTeX, Quarto).
-#   * The TinyTeX / Quarto `ADD --checksum` values are version-coupled and stay
-#     inline at their ADD lines — bump the checksum together with the matching
-#     version ARG here.
+#   * The TinyTeX / Quarto / EB Garamond `ADD --checksum` values are version-coupled
+#     and stay inline at their ADD lines — bump the checksum together with the
+#     matching version ARG here.
 #   * TINYTEX_TLNET_SNAPSHOT must track TINYTEX_VERSION: the archive day has to fall
 #     inside the window tlmgr accepts for the bundle — see the tinytex-builder stage.
 # ----------------------------------------------------------------------------
@@ -23,6 +23,9 @@ ARG ALPINE_GIT_IMAGE=alpine/git:v2.54.0@sha256:6f3b5029566da8e90b24945933dcd806b
 ARG TINYTEX_VERSION=2026.09
 ARG TINYTEX_TLNET_SNAPSHOT=2026/08/31
 ARG QUARTO_VERSION=1.10.18
+# Octavio Pardo's EB Garamond (github.com/octaviopardo/EBGaramond12, SIL OFL 1.1), a commit
+# of its repository: it has no releases.
+ARG EBGARAMOND_COMMIT=106a4a6d377987459ae5e68673a4570f13b957fb
 # R (r-base-core) and the r-cran-* packages are deliberately NOT pinned in this inventory:
 # r2u is a rolling current-CRAN mirror with no dated snapshots and no old-version retention,
 # so a version pin can't be held — they track CRAN, and a deliberate validated rebuild is the
@@ -403,12 +406,29 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     # resolute-patched versions rather than the base image's snapshot.
     apt-get -qq upgrade -y && \
     apt-get -qq install --no-install-recommends \
-        fonts-ebgaramond \
-        fonts-ebgaramond-extra \
         fonts-noto-core \
         fonts-noto-extra \
         locales && \
     locale-gen de_DE.UTF-8 el_GR.UTF-8 en_GB.UTF-8 es_ES.UTF-8 et_EE.UTF-8 it_IT.UTF-8 tr_TR.UTF-8  # keep in sync with LocaleResolver.DefaultTerritories — an ungenerated locale crashes lualatex/tlmgr
+
+# The Partner and Reference Reports set EB Garamond. Debian's fonts-ebgaramond is Georg Duffner's
+# unfinished original, whose bold face lacks the subscript digits, ≥ and −, so a bold Q₁ table header
+# rendered as boxes; Octavio Pardo's completed static OTFs carry them in every face. The reports use
+# the regular, italic, bold and bold italic faces of the family "EB Garamond".
+ARG EBGARAMOND_COMMIT
+ADD --chmod=644 --checksum=sha256:8d618a6bc6e1f4444e1990c39770a62ccbc29394e57afcc58acd530c16489275 \
+    https://raw.githubusercontent.com/octaviopardo/EBGaramond12/${EBGARAMOND_COMMIT}/fonts/otf/EBGaramond-Regular.otf \
+    /usr/share/fonts/opentype/ebgaramond/EBGaramond-Regular.otf
+ADD --chmod=644 --checksum=sha256:296feee09f6fa157f913cf3d75460b5e282b3c43dff4ddffbcc5c1a924f4fd14 \
+    https://raw.githubusercontent.com/octaviopardo/EBGaramond12/${EBGARAMOND_COMMIT}/fonts/otf/EBGaramond-Italic.otf \
+    /usr/share/fonts/opentype/ebgaramond/EBGaramond-Italic.otf
+ADD --chmod=644 --checksum=sha256:2832055876314e4932c46809e919a45fd726a53faa6bfae53be9628723bde90f \
+    https://raw.githubusercontent.com/octaviopardo/EBGaramond12/${EBGARAMOND_COMMIT}/fonts/otf/EBGaramond-Bold.otf \
+    /usr/share/fonts/opentype/ebgaramond/EBGaramond-Bold.otf
+ADD --chmod=644 --checksum=sha256:c010c63d6924e0dec2fedc1b0cb57e86ae9047bb0e9651ea603b0967d6e3072e \
+    https://raw.githubusercontent.com/octaviopardo/EBGaramond12/${EBGARAMOND_COMMIT}/fonts/otf/EBGaramond-BoldItalic.otf \
+    /usr/share/fonts/opentype/ebgaramond/EBGaramond-BoldItalic.otf
+RUN fc-cache -f /usr/share/fonts/opentype/ebgaramond
 
 # Attack-surface reduction: drop build-/desktop-only packages that have no role
 # at render time, so they neither ship in nor get scanned against the image.

@@ -345,6 +345,73 @@ public class NegativePathTests
     }
 
     [Test]
+    public async Task ValidationReport_MissingAcceptLanguage_Returns406()
+    {
+        var req = new HttpRequestMessage(HttpMethod.Get, "/validation-report");
+        req.Headers.Add("Cookie", "JSESSIONID=test-placeholder-session-id");
+        req.Headers.Add("Accept", "application/pdf");
+        // No Accept-Language header: the report has no locale-independent output.
+        var response = await _http!.SendAsync(req);
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotAcceptable));
+    }
+
+    [Test]
+    public async Task ValidationReport_JsonOnly_Returns406WithCode()
+    {
+        var req = new HttpRequestMessage(HttpMethod.Get, "/validation-report");
+        req.Headers.Add("Cookie", "JSESSIONID=test-placeholder-session-id");
+        req.Headers.Add("Accept", "application/json");
+        req.Headers.Add("Accept-Language", "en");
+
+        var response = await _http!.SendAsync(req);
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotAcceptable));
+            Assert.That(body, Does.Contain(ProblemCodes.NoAcceptableOutput));
+        });
+    }
+
+    [Test]
+    public async Task ValidationReport_ControlCharacterInDepartmentFilter_Returns400()
+    {
+        var response = await _http!.SendAsync(Get("/validation-report?departmentFilter=AT_TEST%0ATEST"));
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+    }
+
+    [Test]
+    public async Task ValidationReport_UnknownRule_Returns400WithCode()
+    {
+        // The id check reads the rule catalogue from the image's toolkit tree, so
+        // this also proves the catalogue resolves there.
+        var response = await _http!.SendAsync(Get("/validation-report?rules=3&rules=9999"));
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+            Assert.That(body, Does.Contain(ProblemCodes.UnknownValidationRule));
+            Assert.That(body, Does.Contain("9999"));
+            Assert.That(body, Does.Not.Contain("rule 3,"), "only the unknown id is named");
+        });
+    }
+
+    [Test]
+    public async Task ValidationReport_HasNoPresets_Returns404()
+    {
+        var response = await _http!.SendAsync(Get("/validation-report/presets"));
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+    }
+
+    [Test]
+    public async Task ValidationReportRules_WithoutAuth_Returns401Or403()
+    {
+        var response = await _http!.SendAsync(Get("/validation-report/rules"));
+        Assert.That(response.StatusCode, Is.AnyOf(HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden));
+    }
+
+    [Test]
     public async Task AdminEndpoint_WithoutAuth_Returns401Or403()
     {
         // The /admin/* group has .RequireAuthorization("NeoIpcAdmin").

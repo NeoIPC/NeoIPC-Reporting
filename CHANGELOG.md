@@ -15,6 +15,30 @@ product's own changelog, and here only as the pin that carries it.
 
 ## [Unreleased]
 
+### Added
+
+- `GET /validation-report` renders the Validation Report, which lists every record a NeoIPC
+  validation rule flags, to HTML or PDF for the departments `departmentFilter` names (every department
+  the DHIS2 session can see when it names none), applying the rules `rules` names (all when absent) and
+  admitting test departments with `includeTestData`. It needs the F_NEOIPC_REPORT authority and applies
+  the admin-uploaded validation-exception file when there is one. A rule id the report does not know is
+  refused with `unknown-validation-rule`, and a request that accepts only JSON with
+  `no-acceptable-output`, since the report has no data output.
+- `GET /validation-report/rules?locale=` lists the rules the report applies, each with a one-sentence
+  summary of what it checks, read from the report's own string resources in the requested language and
+  in English where a summary is not translated; a locale the report does not serve is a 400.
+  `GET /validation-report/locales` and `GET /validation-report/parameters` follow the other reports'.
+  Which languages the report offers is governed by `RenderReadyLanguages`, as for the others.
+- `--emit-schemas` writes `validation-report.json` beside the other two schemas, and the parameter
+  generator carries an `integer[]` report parameter as `int[]`.
+
+### Changed
+
+- The image sets EB Garamond from Octavio Pardo's completed static OTFs, pinned to a commit of their
+  repository, in place of Debian's `fonts-ebgaramond`, the unfinished original whose bold face lacks
+  the subscript digits, ≥ and −: the bold Q₁, Q₂ and Q₃ headers of the Partner and Reference Reports'
+  tables rendered as boxes.
+
 ## [0.3.0] - 2026-09-07
 
 ### Added

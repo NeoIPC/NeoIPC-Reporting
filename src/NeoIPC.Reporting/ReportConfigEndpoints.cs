@@ -68,6 +68,55 @@ public static class ReportConfigEndpoints
             .OrderBy(tag => tag, StringComparer.Ordinal)
             .ToArray());
 
+    /// <summary>
+    /// Returns the Validation Report's rule catalogue as <c>{ rules: [{ id, summary }] }</c>,
+    /// ascending by id, each summary in the language <paramref name="locale"/>
+    /// names where the report carries that translation and in English
+    /// otherwise; see <see cref="ValidationRuleCatalogue"/>. Without
+    /// <paramref name="locale"/> the summaries are English. A locale the report
+    /// does not serve is a 400, as on the render endpoint, so the app can ask
+    /// again in English.
+    /// </summary>
+    public static IResult ValidationRules(
+        string? locale, ValidationRuleCatalogue catalogue, ReportLanguageRegistry registry,
+        ILoggerFactory loggerFactory)
+    {
+        var unsafeInput = InputValidation.RejectUnsafeStrings((nameof(locale), locale));
+        if (unsafeInput is not null) return unsafeInput;
+
+        var language = "en";
+        if (!string.IsNullOrWhiteSpace(locale))
+        {
+            var served = registry.ForReport(QuartoValidationReportProducer.ReportName).Keys
+                .ToHashSet(StringComparer.Ordinal);
+            var resolution = LocaleResolver.Resolve(locale, [], served);
+            if (resolution is not { Status: LocaleResolver.Status.Resolved, Locale: { } resolved })
+                return ProblemDetailsHelper.BadRequest(
+                    ProblemCodes.UnsupportedLocale,
+                    "Unsupported locale",
+                    $"The 'locale' parameter '{locale}' is not supported by this report.");
+            language = resolved.Language;
+        }
+
+        try
+        {
+            return Results.Ok(new
+            {
+                rules = catalogue.Rules(language).Select(r => new { id = r.Id, summary = r.Summary }),
+            });
+        }
+        // The exception names a path in the server's file system, which goes to
+        // the log rather than into the response.
+        catch (Exception e) when (e is FileNotFoundException or InvalidOperationException)
+        {
+            loggerFactory.CreateLogger(typeof(ReportConfigEndpoints))
+                .LogError(e, "The Validation Report's rule catalogue could not be read.");
+            return Results.Problem(statusCode: StatusCodes.Status500InternalServerError,
+                title: "Rule catalogue unavailable",
+                detail: "The Validation Report's rule catalogue could not be read from the report sources.");
+        }
+    }
+
     /// <summary>The lower-cased BCP-47 language subtag of a locale tag (<c>en-GB</c> → <c>en</c>).</summary>
     static string LanguageSubtag(string tag) => tag.Split('-', '_')[0].ToLowerInvariant();
 }

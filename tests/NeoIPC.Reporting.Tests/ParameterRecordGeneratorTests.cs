@@ -226,6 +226,35 @@ public class ParameterRecordGeneratorTests
             .ToString();
         Assert.That(generated, Does.Contain("SomeUnreferencedNewParam"));
     }
+
+    [Test]
+    public void IntegerArrayParam_BecomesIntArrayAndAFlowSequenceArgument()
+    {
+        // An integer[] param (the Validation Report's `rules`) is an int[]? on
+        // the record, and the argument builder writes it as a YAML flow sequence
+        // of plain integers, invariant-culture, omitting an empty array.
+        var schema = """
+            {
+              "params": [
+                { "qmdName": "rules", "rType": "integer[]", "defaultValue": null, "range": null, "values": [], "description": "" }
+              ]
+            }
+            """;
+
+        var result = Run(apiSource: "// no api types in this test", schemaSource: schema);
+
+        Assert.That(result.Diagnostics, Is.Empty, "no diagnostics expected for valid input");
+        var generated = string.Join("\n", result.GeneratedTrees
+            .Where(t => t.FilePath.Contains("ReferenceReport"))
+            .Select(t => t.ToString()));
+        Assert.Multiple(() =>
+        {
+            Assert.That(generated, Does.Contain("public int[]? Rules"));
+            Assert.That(generated, Does.Contain("Rules is { Length: > 0 }"));
+            Assert.That(generated, Does.Contain("\"rules:[\" + string.Join(\",\", "));
+            Assert.That(generated, Does.Contain("ToString(CultureInfo.InvariantCulture)"));
+        });
+    }
 }
 
 /// <summary>
