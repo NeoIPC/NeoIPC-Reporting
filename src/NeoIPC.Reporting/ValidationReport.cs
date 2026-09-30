@@ -118,20 +118,23 @@ class ValidationReport
         "No output matching this request's Accept and Accept-Language can be produced. "
         + "The Validation Report renders to text/html or application/pdf only.";
 
-    static ValidationReportRenderParameters ResolveRenderParameters(
+    internal static ValidationReportRenderParameters ResolveRenderParameters(
         ValidationReportApiParameters apiParameters,
         ValidationExceptionStorage validationExceptionStorage,
         Dhis2Endpoint dhis2Endpoint)
     {
         // The dhis2* params are server-side overrides, not part of the API
         // surface: neoipcr targets the deployment's DHIS2 instance. ApiPath is
-        // the host context plus "/api", neoipcr's API mount.
+        // the host context plus "/api", neoipcr's API mount. The report's
+        // Tracker Capture links go to the address the users reach DHIS2 at,
+        // which inside a cluster is not the one the service reads from.
         var rp = apiParameters.MapTo() with
         {
             Dhis2Scheme = dhis2Endpoint.Scheme,
             Dhis2Hostname = dhis2Endpoint.Host,
             Dhis2Port = dhis2Endpoint.Port,
             Dhis2Path = dhis2Endpoint.ApiPath,
+            Dhis2PublicBaseUrl = dhis2Endpoint.PublicBaseUri.AbsoluteUri,
         };
 
         // The validation-exception file is a single admin-managed resource,

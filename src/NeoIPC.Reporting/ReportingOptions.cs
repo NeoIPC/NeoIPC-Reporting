@@ -36,8 +36,8 @@ public sealed class ReportingOptions
 
     /// <summary>
     /// In-cluster DHIS2 base URL. Drives both the .NET-side admin-auth
-    /// call to <c>/api/me</c> and (eventually) the R-side surveillance
-    /// data fetch — single source of truth so an attacker can't redirect
+    /// call to <c>/api/me</c> and the R-side surveillance data fetch —
+    /// single source of truth so an attacker can't redirect
     /// session-bearing traffic by flipping just one of the two.
     /// </summary>
     /// <remarks>
@@ -48,6 +48,24 @@ public sealed class ReportingOptions
     /// configuration.
     /// </remarks>
     public string Dhis2BaseUrl { get; set; } = "http://dhis2-backend:8080";
+
+    /// <summary>
+    /// Base URL at which the users' browsers reach DHIS2 (scheme, host, port
+    /// and context path), for the links a report places to DHIS2's own apps,
+    /// such as the Validation Report's Tracker Capture dashboards. Unset, the
+    /// reports link to <see cref="Dhis2BaseUrl"/>, which is right only where
+    /// the users reach DHIS2 at the address the service does.
+    /// </summary>
+    /// <remarks>
+    /// No session travels to this address: it only ends up in the reports,
+    /// so it can differ from <see cref="Dhis2BaseUrl"/> without splitting
+    /// the session-bearing traffic that setting keeps in one place.
+    /// Validated at startup by <see cref="Dhis2Endpoint"/> (http or https, no
+    /// userinfo, no query or fragment, an ASCII host). Unlike
+    /// <see cref="Dhis2BaseUrl"/>, a loopback host is accepted: on a local
+    /// stack the users' browsers reach DHIS2 at <c>localhost</c>.
+    /// </remarks>
+    public string? Dhis2PublicBaseUrl { get; set; }
 
     /// <summary>
     /// Selects the source-acquisition mode at build time. Used at

@@ -31,6 +31,12 @@ product's own changelog, and here only as the pin that carries it.
   Which languages the report offers is governed by `RenderReadyLanguages`, as for the others.
 - `--emit-schemas` writes `validation-report.json` beside the other two schemas, and the parameter
   generator carries an `integer[]` report parameter as `int[]`.
+- `Reporting:Dhis2PublicBaseUrl` names the base URL at which the users' browsers reach DHIS2. The
+  Validation Report's links from each patient to the Tracker Capture dashboard use it, since
+  `Reporting:Dhis2BaseUrl` is usually an in-cluster address the browser cannot resolve; unset, the
+  links use `Dhis2BaseUrl`. The service refuses to start on one that is not an http or https URL, that
+  carries credentials, a query or a fragment, or that names its host outside ASCII rather than in its
+  `xn--` form.
 - `includeValidationSummaryTable` on `GET /partner-report`, `POST /partner-report` and
   `GET /reference-report` switches the reports' data-validation summary table, the first section after
   the header, which they show when the parameter is absent.

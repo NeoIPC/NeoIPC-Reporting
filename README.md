@@ -99,7 +99,9 @@ Change `Reporting:ReportsSourceDir` / `Reporting:NeoIpcrDevPath` if you keep the
 For DHIS2 authentication and live data, run a DHIS2 instance alongside it and point
 `Reporting:Dhis2BaseUrl` at it through the `Reporting__Dhis2BaseUrl` environment variable —
 the service loads `appsettings.json` and `appsettings.Development.json` only, so a
-`.local.json` overlay would be read by nothing.
+`.local.json` overlay would be read by nothing. When the browser reaches that DHIS2 at another
+address, set `Reporting:Dhis2PublicBaseUrl` (`Reporting__Dhis2PublicBaseUrl`) to it too: the
+reports' links to DHIS2, such as the Validation Report's Tracker Capture dashboards, use it.
 
 ## Build modes (Docker)
 
@@ -177,6 +179,12 @@ ignore `NEOIPCR_DEV_PATH`; `workspace` images export it as `/neoipcr`.
   the in-cluster DHIS2 service. In Compose this is the default-bridge
   network behaviour; on Kubernetes apply a `NetworkPolicy` that allows
   only that destination.
+- **The users' DHIS2 address.** `Reporting:Dhis2PublicBaseUrl` is the
+  base URL the users' browsers reach DHIS2 at, with its context path.
+  The reports' links to DHIS2 are built from it, so a deployment whose
+  `Dhis2BaseUrl` is an in-cluster name sets it; unset, the links go to
+  `Dhis2BaseUrl`, which only the cluster can resolve. It is never read
+  from a request.
 - **Read-only resource trees.** The image's `/toolkit/` and (in
   workspace mode) `/neoipcr/` trees are `chmod -R a-w` at build time.
   The render path only ever reads them — it copies the rendered

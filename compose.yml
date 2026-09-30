@@ -65,6 +65,9 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_PATHBASE: /reporting/api
       Reporting__Dhis2BaseUrl: http://dhis2-backend:8080
+      # Where the browser reaches DHIS2: traefik routes / to it on the
+      # published port. The reports' links to DHIS2 use this address.
+      Reporting__Dhis2PublicBaseUrl: http://localhost:${TRAEFIK_PORT:-8080}
     volumes:
       - reference-data:/home/app/NeoIPC/ReferenceData
       - validation-exceptions:/home/app/NeoIPC/ValidationExceptions
