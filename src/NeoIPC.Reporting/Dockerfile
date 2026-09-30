@@ -170,11 +170,9 @@ RUN set -eu; \
     done; \
     # Drop Quarto's per-project scratch/cache dir if a dirty source tree (e.g. a
     # workspace-mode COPY of a working checkout where someone rendered a report
-    # locally) carried one in. It is regenerated on every render and /toolkit is
-    # made read-only in the final image, so a baked .quarto would symlink Quarto's
-    # write targets (project-cache/deno-kv-file) to read-only storage and every
-    # render would fail to open its project cache. The per-render symlink-forest
-    # (QuartoReportProducer) excludes it too; this is the build-phase half.
+    # locally) carried one in. It is regenerated on every render and is never a
+    # source input; QuartoReportProducer leaves it out of every render's workdir
+    # as well, and this is the build-phase half.
     find /toolkit-output -type d -name .quarto -prune -exec rm -rf {} +
 
 # ----------------------------------------------------------------------------
@@ -487,9 +485,9 @@ RUN ln -s /opt/quarto/bin/quarto /usr/local/bin/quarto && \
 COPY --from=tinytex-builder --chown=$APP_UID /home/app/.TinyTeX /home/app/.TinyTeX
 ENV PATH="/home/app/.TinyTeX/bin/x86_64-linux:$PATH"
 
-# Lock down /toolkit (read-only at runtime). The render path only ever creates
-# symlinks pointing into here; nothing should be writing to /toolkit. A
-# defence-in-depth complement to the per-render symlink-forest model.
+# Lock down /toolkit (read-only at runtime). The render path only reads from
+# here — it copies the rendered report's directory into its workdir and
+# symlinks the shared resources — so nothing should be writing to /toolkit.
 RUN chmod -R a-w /toolkit
 
 # Pre-create the reporting file-storage roots owned by the app user so a named

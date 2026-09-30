@@ -179,8 +179,9 @@ ignore `NEOIPCR_DEV_PATH`; `workspace` images export it as `/neoipcr`.
   only that destination.
 - **Read-only resource trees.** The image's `/toolkit/` and (in
   workspace mode) `/neoipcr/` trees are `chmod -R a-w` at build time.
-  The render path only ever creates symlinks pointing into them, so
-  the immutability is the load-bearing defense; runtime
+  The render path only ever reads them — it copies the rendered
+  report's own directory into its workdir and symlinks the shared
+  resources — so the immutability is the load-bearing defense; runtime
   `read_only: true` on the whole container is not used because the
   Quarto + R subprocesses write to a number of cache paths under
   `/home/app/.*` that would each need explicit tmpfs mounts. The

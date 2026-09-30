@@ -41,6 +41,10 @@ product's own changelog, and here only as the pin that carries it.
   a commit and shipped with their SIL OFL licence, in place of Debian's `fonts-ebgaramond`, the
   unfinished original release whose bold face lacks the subscript digits, ≥ and −: the bold Q₁, Q₂
   and Q₃ headers of the Partner and Reference Reports' tables rendered as boxes.
+- A render copies its report's own directory into its private workdir instead of linking each file
+  back to the read-only report sources, so an HTML render can show an image kept in that directory:
+  Quarto copies the images a document shows into its output and cannot set the timestamps of a copy
+  that still links to a read-only file.
 
 ## [0.3.0] - 2026-09-07
 

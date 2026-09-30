@@ -6,7 +6,7 @@ namespace NeoIPC.Reporting;
 /// Startup service that prepares the filesystem layout the rendering
 /// pipeline expects: the per-render temp root, the per-resource storage
 /// directories, and the per-report language registry. The actual
-/// per-render symlink layout is built lazily by
+/// per-render workdir is built lazily by
 /// <see cref="QuartoReportProducer"/> on each request.
 /// </summary>
 /// <remarks>

@@ -27,9 +27,8 @@ public sealed class ReportingOptions
     /// <summary>
     /// Per-render scratch root. Each render creates a fresh
     /// <c>render_&lt;random&gt;/</c> subdirectory under here. The
-    /// per-render dir contains a symlink-tree layout (see
-    /// <see cref="QuartoReportProducer"/>) that mirrors the toolkit's
-    /// repo structure so the QMD's relative reaches
+    /// per-render dir mirrors the toolkit's repo structure (see
+    /// <see cref="QuartoReportProducer"/>) so the QMD's relative reaches
     /// (<c>../common.yaml</c>, <c>../../glossary.yaml</c>, etc.) resolve.
     /// </summary>
     public string ReportsTempDir { get; set; } =
