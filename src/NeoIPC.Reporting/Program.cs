@@ -89,10 +89,7 @@ builder.Services.AddOptions<ReportingOptions>()
 builder.Services.AddSingleton<ReportLanguageRegistry>();
 builder.Services.AddSingleton<ValidationRuleCatalogue>();
 builder.Services.AddSingleton(sp =>
-{
-    var reporting = sp.GetRequiredService<IOptions<ReportingOptions>>().Value;
-    return Dhis2Endpoint.Build(reporting.Dhis2BaseUrl, reporting.Dhis2PublicBaseUrl);
-});
+    Dhis2Endpoint.FromOptions(sp.GetRequiredService<IOptions<ReportingOptions>>().Value));
 builder.Services.AddHostedService<ReportingWarmupHostedService>();
 
 builder.Services.AddSingleton<ReferenceDataStorage>();

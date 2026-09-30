@@ -109,9 +109,10 @@ public class ValidationRuleCatalogueTests
             Throws.InvalidOperationException.With.Message.Contains("rule 3 has no 'summary'"));
     }
 
-    [TestCase("\"\"")]
-    [TestCase("\"   \"")]
-    public void Rules_RefusesAnEnglishRuleWithAnEmptySummary(string summary)
+    [TestCase("\"\"",    "rule 3 has an empty 'summary'")]
+    [TestCase("\"   \"", "rule 3 has a blank 'summary'")]
+    [TestCase("[a, b]",  "rule 3 has a 'summary' that is not text")]
+    public void Rules_RefusesAnEnglishRuleWithoutASummaryToShow(string summary, string refusal)
     {
         WriteStrings("content", $"""
             problems:
@@ -120,7 +121,125 @@ public class ValidationRuleCatalogueTests
             """);
 
         Assert.That(() => Catalogue().Rules("en"),
-            Throws.InvalidOperationException.With.Message.Contains("rule 3 has an empty 'summary'"));
+            Throws.InvalidOperationException.With.Message.Contains(refusal));
+    }
+
+    // The report's cascade takes a translation's summary whatever it holds,
+    // and fails the render in that language unless it is one non-empty string.
+    [TestCase("\"\"",   "rule 25 has an empty 'summary'")]
+    [TestCase("[a, b]", "rule 25 has a 'summary' that is not text")]
+    public void Rules_RefusesATranslationWhoseSummaryTheReportRefuses(string summary, string refusal)
+    {
+        WriteStrings("content", English);
+        WriteStrings("content.de", $"problems:\n  \"25\":\n    summary: {summary}\n");
+
+        Assert.That(() => Catalogue().Rules("de"),
+            Throws.InvalidOperationException.With.Message.Contains(refusal));
+    }
+
+    [Test]
+    public void Rules_KeepsEnglishForABlankTranslatedSummary()
+    {
+        WriteStrings("content", English);
+        WriteStrings("content.de", "problems:\n  \"25\":\n    summary: \"   \"\n");
+
+        Assert.That(Catalogue().Rules("de").Single(r => r.Id == 25).Summary,
+            Is.EqualTo("An enrolment without an admission form."));
+    }
+
+    // Plain scalars the report's YAML reader (R's yaml package with the
+    // reports' string-resource handlers) reads as a null, a logical or a
+    // number, which fails the render.
+    [TestCase("",            Description = "empty: null")]
+    [TestCase("~",           Description = "null")]
+    [TestCase("null",        Description = "null")]
+    [TestCase("NULL",        Description = "null")]
+    [TestCase("true",        Description = "logical")]
+    [TestCase("False",       Description = "logical")]
+    [TestCase(".na",         Description = "a missing logical")]
+    [TestCase("42",          Description = "an integer")]
+    [TestCase("-7",          Description = "an integer")]
+    [TestCase("017",         Description = "an octal integer")]
+    [TestCase("0x1F",        Description = "a hexadecimal integer")]
+    [TestCase("1,000",       Description = "an integer the comma makes missing")]
+    [TestCase(".na.integer", Description = "a missing integer")]
+    [TestCase("1.5",         Description = "a double")]
+    [TestCase(".5",          Description = "a double")]
+    [TestCase("1.0e+3",      Description = "a double with an exponent")]
+    [TestCase(".inf",        Description = "infinity")]
+    [TestCase("-.Inf",       Description = "negative infinity")]
+    [TestCase(".NaN",        Description = "not a number")]
+    [TestCase(".na.real",    Description = "a missing double")]
+    public void Rules_RefusesAPlainSummaryTheReportDoesNotReadAsText(string summary)
+    {
+        WriteStrings("content", $"problems:\n  \"3\":\n    summary: {summary}\n");
+
+        Assert.That(() => Catalogue().Rules("en"),
+            Throws.InvalidOperationException.With.Message.Contains("rule 3 has an unquoted 'summary'"));
+    }
+
+    // The same words quoted, and plain words the report reads as text:
+    // YAML 1.1 booleans other than true and false, timestamps, sexagesimal
+    // numbers, underscores in numbers, and the 0o, 0b and 0X prefixes.
+    [TestCase("\"~\"",         "~")]
+    [TestCase("'true'",        "true")]
+    [TestCase("\"42\"",        "42")]
+    [TestCase("'.inf'",        ".inf")]
+    [TestCase("\"1.5\"",       "1.5")]
+    [TestCase("yes",           "yes")]
+    [TestCase("Off",           "Off")]
+    [TestCase("y",             "y")]
+    [TestCase("nULL",          "nULL")]
+    [TestCase("2026-09-30",    "2026-09-30")]
+    [TestCase("1:20",          "1:20")]
+    [TestCase("1_000",         "1_000")]
+    [TestCase("0o17",          "0o17")]
+    [TestCase("0b101",         "0b101")]
+    [TestCase("0X1F",          "0X1F")]
+    [TestCase("1e3",           "1e3")]
+    [TestCase("Infinity",      "Infinity")]
+    public void Rules_ReadsASummaryTheReportReadsAsText(string summary, string text)
+    {
+        WriteStrings("content", $"problems:\n  \"3\":\n    summary: {summary}\n");
+
+        Assert.That(Catalogue().Rules("en").Single().Summary, Is.EqualTo(text));
+    }
+
+    [Test]
+    public void Rules_RefusesATranslationWithAPlainSummaryTheReportDoesNotReadAsText()
+    {
+        // The report's cascade takes the null for the translation's value and
+        // drops the English summary, which fails its render in that language.
+        WriteStrings("content", English);
+        WriteStrings("content.de", "problems:\n  \"25\":\n    summary: null\n");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(() => Catalogue().Rules("de"),
+                Throws.InvalidOperationException.With.Message.Contains("rule 25 has an unquoted 'summary'"));
+            Assert.That(Catalogue().Rules("en"), Has.Length.EqualTo(3), "English does not read the translation");
+        });
+    }
+
+    [Test]
+    public void Rules_ReadAnOverlayThatIsGone_AsAbsent()
+    {
+        // A link to nothing exists when the overlay is looked at and is gone
+        // when it is read, as an overlay deleted between the two would be.
+        WriteStrings("content", English);
+        var overlay = Path.Combine(_root, "Validation-Report", "content.de", "_sR.yaml");
+        Directory.CreateDirectory(Path.GetDirectoryName(overlay)!);
+        try
+        {
+            File.CreateSymbolicLink(overlay, Path.Combine(_root, "no-such-file.yaml"));
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            Assert.Ignore($"This platform does not let the test create a symbolic link: {e.Message}");
+        }
+
+        Assert.That(Catalogue().Rules("de").Select(r => r.Summary),
+            Is.EqualTo(Catalogue().Rules("en").Select(r => r.Summary)));
     }
 
     [Test]

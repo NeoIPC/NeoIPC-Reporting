@@ -43,9 +43,12 @@ public sealed class ReportingOptions
     /// <remarks>
     /// Validated at startup by <see cref="Dhis2Endpoint"/> (rejects
     /// non-http/s schemes, userinfo, and loopback / unspecified
-    /// addresses). The default matches the Compose service name; a
-    /// non-default value should only ever come from a trusted deployment
-    /// configuration.
+    /// addresses). While <see cref="Dhis2PublicBaseUrl"/> is unset, this
+    /// address without its query and fragment is also the base of the
+    /// reports' links to DHIS2, and must then have the shape that setting
+    /// is held to, or the service does not start. The default matches the
+    /// Compose service name; a non-default value should only ever come from
+    /// a trusted deployment configuration.
     /// </remarks>
     public string Dhis2BaseUrl { get; set; } = "http://dhis2-backend:8080";
 
@@ -60,8 +63,12 @@ public sealed class ReportingOptions
     /// No session travels to this address: it only ends up in the reports,
     /// so it can differ from <see cref="Dhis2BaseUrl"/> without splitting
     /// the session-bearing traffic that setting keeps in one place.
-    /// Validated at startup by <see cref="Dhis2Endpoint"/> (http or https, no
-    /// userinfo, no query or fragment, an ASCII host). Unlike
+    /// Validated at startup by <see cref="Dhis2Endpoint"/>, as written:
+    /// <c>http://</c> or <c>https://</c>, a host of dot-separated labels of
+    /// ASCII letters, digits, <c>-</c> and <c>_</c> (so no IPv6 literal), an
+    /// optional port, and a path of ASCII letters, digits, <c>-</c>,
+    /// <c>.</c>, <c>_</c>, <c>~</c> and <c>%</c>-escapes; no whitespace, no
+    /// userinfo, no query or fragment, nothing else. Unlike
     /// <see cref="Dhis2BaseUrl"/>, a loopback host is accepted: on a local
     /// stack the users' browsers reach DHIS2 at <c>localhost</c>.
     /// </remarks>

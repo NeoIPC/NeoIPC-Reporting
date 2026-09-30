@@ -16,8 +16,9 @@ a department its results back.
 
 ## What it does
 
-- **Renders reports on demand** — currently the Partner Report a department receives and the
-  network-wide Reference Report. A render runs Quarto over the toolkit's report sources,
+- **Renders reports on demand** — currently the Partner Report a department receives, the
+  network-wide Reference Report, and the Validation Report, which lists the records the NeoIPC
+  validation rules flag. A render runs Quarto over the toolkit's report sources,
   with the [neoipcr](https://github.com/NeoIPC/neoipcr) R package pulling and computing the
   data behind them.
 - **Serves the underlying datasets as JSON**, for callers that want the numbers rather than
@@ -184,7 +185,12 @@ ignore `NEOIPCR_DEV_PATH`; `workspace` images export it as `/neoipcr`.
   The reports' links to DHIS2 are built from it, so a deployment whose
   `Dhis2BaseUrl` is an in-cluster name sets it; unset, the links go to
   `Dhis2BaseUrl`, which only the cluster can resolve. It is never read
-  from a request.
+  from a request. The service refuses to start on one that is not
+  `http(s)://host[:port][/path]` as written, with a host of ASCII
+  letters, digits, `-`, `_` and dots and a path of plain characters and
+  `%`-escapes — so no whitespace, credentials, IPv6 literal, query or
+  fragment — and, while it is unset, on a `Dhis2BaseUrl` whose address
+  would not pass as one. No refusal repeats the value.
 - **Read-only resource trees.** The image's `/toolkit/` and (in
   workspace mode) `/neoipcr/` trees are `chmod -R a-w` at build time.
   The render path only ever reads them — it copies the rendered

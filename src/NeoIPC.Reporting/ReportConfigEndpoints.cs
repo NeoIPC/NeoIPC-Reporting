@@ -10,8 +10,9 @@ namespace NeoIPC.Reporting;
 /// <b>locales</b> and the Validation Report's <b>rule catalogue</b>. All
 /// derive from the report layer (the Surveillance-Toolkit tree mounted at
 /// <see cref="ReportingOptions.ReportsSourceDir"/>) rather than from the
-/// .NET API surface, so they change with the report without an app or
-/// backend release.
+/// .NET API surface, so a change to them, such as a rule added to the
+/// Validation Report, needs no change to this service or to the app; a
+/// released image picks it up with the reports release it pins.
 /// </summary>
 public static class ReportConfigEndpoints
 {
@@ -112,9 +113,12 @@ public static class ReportConfigEndpoints
     /// <summary>
     /// Reads from the Validation Report's rule catalogue through
     /// <paramref name="read"/>. When the report's string resources cannot be
-    /// read, the exception goes to <paramref name="logger"/> and
-    /// <paramref name="problem"/> is a 500 whose detail names no path: the
-    /// exception names one in the server's file system, which stays in the log.
+    /// read (missing, unreadable, or malformed: an <see cref="IOException"/>,
+    /// <see cref="UnauthorizedAccessException"/> or
+    /// <see cref="InvalidOperationException"/>), the exception goes to
+    /// <paramref name="logger"/> and <paramref name="problem"/> is a 500 whose
+    /// detail names no path: the exception names one in the server's file
+    /// system, which stays in the log.
     /// </summary>
     internal static bool TryReadRuleCatalogue<T>(
         Func<T> read, ILogger logger,
@@ -126,7 +130,7 @@ public static class ReportConfigEndpoints
             problem = null;
             return true;
         }
-        catch (Exception e) when (e is FileNotFoundException or InvalidOperationException)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
             logger.LogError(e, "The Validation Report's rule catalogue could not be read.");
             value = default;

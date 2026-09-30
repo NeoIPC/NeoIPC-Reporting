@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NeoIPC.Reporting;
@@ -74,6 +75,38 @@ public class ValidationRulesEndpointTests
         });
     }
 
+    // What reading the string resources can throw besides a missing or
+    // malformed file: each is logged and answered with the same path-free 500.
+    static IEnumerable<TestCaseData> UnreadableSources()
+    {
+        const string path = "/toolkit/reports/Validation-Report/content/_sR.yaml";
+        yield return new TestCaseData(new UnauthorizedAccessException($"Access to the path '{path}' is denied."))
+            .SetName("TryReadRuleCatalogue_WhenTheSourceCannotBeOpened_Is500WithoutTheServerPath");
+        yield return new TestCaseData(new IOException($"Input/output error : '{path}'"))
+            .SetName("TryReadRuleCatalogue_WhenReadingTheSourceFails_Is500WithoutTheServerPath");
+        yield return new TestCaseData(new DirectoryNotFoundException($"Could not find a part of the path '{path}'."))
+            .SetName("TryReadRuleCatalogue_WhenTheSourceDirectoryIsGone_Is500WithoutTheServerPath");
+    }
+
+    [TestCaseSource(nameof(UnreadableSources))]
+    public void TryReadRuleCatalogue_WhenTheSourceCannotBeRead_Is500WithoutTheServerPath(Exception failure)
+    {
+        var logger = new RecordingLogger();
+
+        var read = ReportConfigEndpoints.TryReadRuleCatalogue<int>(() => throw failure, logger, out _, out var result);
+
+        Assert.That(read, Is.False);
+        Assert.That(result, Is.InstanceOf<ProblemHttpResult>());
+        var problem = (ProblemHttpResult)result!;
+        Assert.Multiple(() =>
+        {
+            Assert.That(problem.StatusCode, Is.EqualTo(StatusCodes.Status500InternalServerError));
+            Assert.That(problem.ProblemDetails.Title, Is.EqualTo("Rule catalogue unavailable"));
+            Assert.That(problem.ProblemDetails.Detail, Does.Not.Contain("/toolkit"));
+            Assert.That(logger.Errors, Is.EqualTo(new[] { failure }), "the exception, and its path, go to the log");
+        });
+    }
+
     [Test]
     public void ValidationRules_WithoutALocale_IsEnglish_AndWithOne_IsThatTranslation()
     {
@@ -115,5 +148,21 @@ public class ValidationRulesEndpointTests
             Assert.That(problem.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
             Assert.That(problem.ProblemDetails.Extensions["code"], Is.EqualTo(ProblemCodes.UnsupportedLocale));
         });
+    }
+
+    /// <summary>Records the exceptions logged at error level.</summary>
+    sealed class RecordingLogger : ILogger
+    {
+        public List<Exception?> Errors { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == LogLevel.Error) Errors.Add(exception);
+        }
     }
 }

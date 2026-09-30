@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using Microsoft.Net.Http.Headers;
 using NeoIPC.Reporting.Authorization;
 using NeoIPC.Reporting.Resources;
 
@@ -81,16 +82,8 @@ class ValidationReport
             "Rendering the Validation Report requires the F_NEOIPC_REPORT authority.");
         if (forbidden is not null) return forbidden;
 
-        var apiParameters = new ValidationReportApiParameters
-        {
-            SessionId = sessionId,
-            AcceptHeaders = accept,
-            AcceptLanguageHeaders = acceptLang,
-            Locale = locale,
-            DepartmentFilter = departmentFilter.Length > 0 ? departmentFilter : null,
-            Rules = rules.Length > 0 ? [.. rules.Distinct().Order()] : null,
-            IncludeTestData = includeTestData,
-        };
+        var apiParameters = ApiParameters(sessionId, accept, acceptLang,
+            locale, departmentFilter, rules, includeTestData);
 
         var renderParameters = ResolveRenderParameters(
             apiParameters, validationExceptionStorage, dhis2Endpoint);
@@ -117,6 +110,30 @@ class ValidationReport
     const string RenderedOutputs =
         "No output matching this request's Accept and Accept-Language can be produced. "
         + "The Validation Report renders to text/html or application/pdf only.";
+
+    /// <summary>
+    /// The request's parameters as the render takes them: an empty
+    /// <paramref name="departmentFilter"/> or <paramref name="rules"/> is
+    /// absent, so the report's default applies, and the rule ids are
+    /// deduplicated and in ascending order.
+    /// </summary>
+    internal static ValidationReportApiParameters ApiParameters(
+        string sessionId,
+        ImmutableArray<MediaTypeHeaderValue> accept,
+        ImmutableArray<StringWithQualityHeaderValue> acceptLang,
+        string? locale,
+        string[] departmentFilter,
+        int[] rules,
+        bool? includeTestData) => new()
+    {
+        SessionId = sessionId,
+        AcceptHeaders = accept,
+        AcceptLanguageHeaders = acceptLang,
+        Locale = locale,
+        DepartmentFilter = departmentFilter.Length > 0 ? departmentFilter : null,
+        Rules = rules.Length > 0 ? [.. rules.Distinct().Order()] : null,
+        IncludeTestData = includeTestData,
+    };
 
     internal static ValidationReportRenderParameters ResolveRenderParameters(
         ValidationReportApiParameters apiParameters,

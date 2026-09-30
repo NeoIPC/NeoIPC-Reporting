@@ -9,15 +9,17 @@ namespace NeoIPC.Reporting.Tests;
 
 /// <summary>
 /// The workdir a Quarto render gets over a fixture toolkit tree: the report's
-/// own files are private copies, not links into the report sources.
+/// own files are private copies, not links into the report sources, and a
+/// setup that fails leaves no workdir behind.
 /// </summary>
 /// <remarks>
 /// An HTML render copies the resources its document references, such as a
-/// solution's screenshot, into Quarto's output directory and sets their
-/// timestamps. Quarto copies a symlink as a symlink and sets the timestamps
-/// through it, which reaches the source file; on the image's read-only
-/// <c>/toolkit</c> that fails the render. A regular file in the workdir takes
-/// Quarto's plain file copy instead.
+/// screenshot in a problem's details or a solution, into Quarto's output
+/// directory and sets their timestamps. Quarto copies a symlink as a symlink
+/// and sets the timestamps through it, which reaches the source file; in the
+/// image's root-owned <c>/toolkit</c>, which the service does not own, that
+/// fails the render. A regular file in the workdir, which the service owns,
+/// takes Quarto's plain file copy instead.
 /// </remarks>
 [TestFixture]
 [Category("Unit")]
@@ -100,6 +102,28 @@ public class RenderWorkdirTests
         {
             Assert.That(Directory.Exists(renderRoot), Is.False);
             Assert.That(File.Exists(Path.Combine(_reportSource, "img", "fig-screenshot.png")), Is.True);
+        });
+    }
+
+    [Test]
+    public void ASetupThatFails_LeavesNoWorkdirBehind()
+    {
+        // A link to nothing, as an editor's lock file (.#<file>) is: the
+        // enumeration returns it, and copying it fails.
+        try
+        {
+            File.CreateSymbolicLink(Path.Combine(_reportSource, ".#fixture.qmd"),
+                Path.Combine(_reportSource, "no-such-file"));
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            Assert.Ignore($"This platform does not let the test create a symbolic link: {e.Message}");
+        }
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(() => Producer(), Throws.Exception);
+            Assert.That(Directory.GetDirectories(_tempDir, "render_*"), Is.Empty);
         });
     }
 
