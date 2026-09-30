@@ -7,7 +7,7 @@ namespace NeoIPC.Reporting.Tests;
 /// <summary>
 /// The EB Garamond faces the built image installs, read through fontconfig
 /// inside the running container: exactly the four static OTFs the Dockerfile
-/// pins, each carrying the subscript digits, ≥ and − that the Partner and
+/// pins, each carrying the subscript digits, ≥, and − that the Partner and
 /// Reference Reports' bold table headers set.
 /// </summary>
 /// <remarks>

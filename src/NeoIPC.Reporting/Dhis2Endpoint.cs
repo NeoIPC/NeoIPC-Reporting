@@ -99,10 +99,10 @@ public sealed partial record Dhis2Endpoint(string Scheme, string Host, int Port,
     /// Checks <paramref name="text"/>, as written, against the shape the
     /// reports require of the base of their links to DHIS2: <c>http://</c> or
     /// <c>https://</c> in any case, a host of dot-separated labels of ASCII
-    /// letters, digits, <c>-</c> and <c>_</c> (a final dot allowed), an
+    /// letters, digits, <c>-</c>, and <c>_</c> (a final dot allowed), an
     /// optional port from 1 to 65535, and a path of <c>/</c>-separated
     /// segments of ASCII letters, digits, <c>-</c>, <c>.</c>, <c>_</c>,
-    /// <c>~</c> and <c>%</c>-escapes, with nothing else. Returns the first
+    /// <c>~</c>, and <c>%</c>-escapes, with nothing else. Returns the first
     /// defect found, or <see cref="LinkBaseDefect.None"/>.
     /// </summary>
     /// <remarks>
@@ -153,15 +153,15 @@ public sealed partial record Dhis2Endpoint(string Scheme, string Host, int Port,
         LinkBaseDefect.QueryOrFragment => "contains '?' or '#', which begin a query or fragment",
         LinkBaseDefect.BracketedHost => "names its host in brackets, as an IPv6 literal",
         LinkBaseDefect.HostOutsideAscii => "names its host outside ASCII",
-        LinkBaseDefect.Host => "names a host that is not dot-separated labels of ASCII letters, digits, '-' and '_'",
+        LinkBaseDefect.Host => "names a host that is not dot-separated labels of ASCII letters, digits, '-', and '_'",
         LinkBaseDefect.Port => "gives a port that is not a number from 1 to 65535",
-        LinkBaseDefect.Path => "has a path character other than an ASCII letter, a digit, '-', '.', '_', '~' or a %-escape",
+        LinkBaseDefect.Path => "has a path character other than an ASCII letter, a digit, '-', '.', '_', '~', or a %-escape",
         _ => throw new ArgumentOutOfRangeException(nameof(defect)),
     };
 
     const string ExpectedLinkBase =
         "The expected shape is http:// or https://, a host of dot-separated labels of ASCII letters, digits, " +
-        "'-' and '_', an optional :port, and an optional path of ASCII letters, digits, '-', '.', '_', '~' and " +
+        "'-', and '_', an optional :port, and an optional path of ASCII letters, digits, '-', '.', '_', '~', and " +
         "%-escapes, with nothing after it.";
 
     // The public address ends up in every report that links to DHIS2, as a
@@ -187,11 +187,13 @@ public sealed partial record Dhis2Endpoint(string Scheme, string Host, int Port,
     }
 
     // Without a public address the links go to the service's own, as scheme,
-    // host, port and path: a query or fragment the setting may carry is no
+    // host, port, and path: a query or fragment the setting may carry is no
     // part of a base the reports append paths to. That base is held to the
-    // shape of the public one, host exactly as the links would carry it, so
-    // an in-cluster address that cannot serve as one stops the service rather
-    // than every report's links.
+    // shape of the public one, host exactly as the links would carry it. Only
+    // the Validation Report writes links to DHIS2, yet an address that cannot
+    // serve as their base stops the whole service: the refusal is deliberately
+    // at startup, so a deployment learns of the misconfiguration when it
+    // deploys rather than on the first Validation Report render.
     static Uri FallbackPublicBaseUri(Uri baseUri)
     {
         var fallback = new UriBuilder(baseUri) { Query = string.Empty, Fragment = string.Empty }.Uri;
@@ -273,12 +275,12 @@ public enum LinkBaseDefect
     /// <summary>A host with a character outside ASCII.</summary>
     HostOutsideAscii,
 
-    /// <summary>A host that is not dot-separated labels of ASCII letters, digits, <c>-</c> and <c>_</c>.</summary>
+    /// <summary>A host that is not dot-separated labels of ASCII letters, digits, <c>-</c>, and <c>_</c>.</summary>
     Host,
 
     /// <summary>A port that is not a number from 1 to 65535.</summary>
     Port,
 
-    /// <summary>A path character other than an ASCII letter, a digit, <c>-</c>, <c>.</c>, <c>_</c>, <c>~</c> or a <c>%</c>-escape.</summary>
+    /// <summary>A path character other than an ASCII letter, a digit, <c>-</c>, <c>.</c>, <c>_</c>, <c>~</c>, or a <c>%</c>-escape.</summary>
     Path,
 }

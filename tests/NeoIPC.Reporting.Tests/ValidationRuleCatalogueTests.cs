@@ -8,7 +8,8 @@ namespace NeoIPC.Reporting.Tests;
 /// The Validation Report's rule catalogue, read from a fixture toolkit tree:
 /// the English source alone, a translation overlaid per key with English for
 /// what it lacks, the refusals of a source the report could not render from
-/// either, and the re-read when either file changes.
+/// either or that the catalogue holds to a stricter shape of its own, and the
+/// re-read when either file changes.
 /// </summary>
 [TestFixture]
 [Category("Unit")]
@@ -148,7 +149,7 @@ public class ValidationRuleCatalogueTests
     }
 
     // Plain scalars the report's YAML reader (R's yaml package with the
-    // reports' string-resource handlers) reads as a null, a logical or a
+    // reports' string-resource handlers) reads as a null, a logical, or a
     // number, which fails the render.
     [TestCase("",            Description = "empty: null")]
     [TestCase("~",           Description = "null")]
@@ -180,7 +181,7 @@ public class ValidationRuleCatalogueTests
 
     // The same words quoted, and plain words the report reads as text:
     // YAML 1.1 booleans other than true and false, timestamps, sexagesimal
-    // numbers, underscores in numbers, and the 0o, 0b and 0X prefixes.
+    // numbers, underscores in numbers, and the 0o, 0b, and 0X prefixes.
     [TestCase("\"~\"",         "~")]
     [TestCase("'true'",        "true")]
     [TestCase("\"42\"",        "42")]
@@ -203,6 +204,66 @@ public class ValidationRuleCatalogueTests
         WriteStrings("content", $"problems:\n  \"3\":\n    summary: {summary}\n");
 
         Assert.That(Catalogue().Rules("en").Single().Summary, Is.EqualTo(text));
+    }
+
+    // The report's reader types a scalar by its content when it has no tag or
+    // the non-specific tag '!' and is not quoted, a block scalar included.
+    [TestCase("! 42",               Description = "the non-specific tag: an integer")]
+    [TestCase("! true",             Description = "the non-specific tag: a logical")]
+    [TestCase("! |-\n      42",     Description = "the non-specific tag on a block scalar: an integer")]
+    [TestCase("|-\n      42",       Description = "a literal block scalar without its line break: an integer")]
+    [TestCase(">-\n      null",     Description = "a folded block scalar without its line break: a null")]
+    public void Rules_RefusesAnUnquotedSummaryTheReportTypesByContent(string summary)
+    {
+        WriteStrings("content", $"problems:\n  \"3\":\n    summary: {summary}\n");
+
+        Assert.That(() => Catalogue().Rules("en"),
+            Throws.InvalidOperationException.With.Message.Contains("rule 3 has an unquoted 'summary'"));
+    }
+
+    // A tag the report's reader names int, float, bool, or null converts the
+    // scalar whatever its style, and seq fails the read; the reader drops the
+    // core-schema prefix, or else every leading '!', to name it.
+    [TestCase("!!int 42",       "tag:yaml.org,2002:int",   Description = "an integer")]
+    [TestCase("!!int \"42\"",   "tag:yaml.org,2002:int",   Description = "a quoted integer")]
+    [TestCase("!int 42",        "!int",                    Description = "a local tag naming int")]
+    [TestCase("!<int> 42",      "int",                     Description = "a verbatim tag naming int")]
+    [TestCase("!!float 1",      "tag:yaml.org,2002:float", Description = "a double")]
+    [TestCase("!!bool yes",     "tag:yaml.org,2002:bool",  Description = "a logical the label handler does not keep as text")]
+    [TestCase("!!bool \"yes\"", "tag:yaml.org,2002:bool",  Description = "a quoted logical")]
+    [TestCase("!!null x",       "tag:yaml.org,2002:null",  Description = "a null")]
+    [TestCase("!!seq x",        "tag:yaml.org,2002:seq",   Description = "a read failure")]
+    public void Rules_RefusesASummaryWhoseTagTheReportDoesNotReadAsText(string summary, string tag)
+    {
+        WriteStrings("content", $"problems:\n  \"3\":\n    summary: {summary}\n");
+
+        Assert.That(() => Catalogue().Rules("en"),
+            Throws.InvalidOperationException.With.Message.Contains($"rule 3 has a 'summary' tagged '{tag}'"));
+    }
+
+    [TestCase("!!str 42",    "42",  Description = "the string tag")]
+    [TestCase("!!str yes",   "yes", Description = "the string tag on a boolean word")]
+    [TestCase("! \"42\"",    "42",  Description = "the non-specific tag on a quoted scalar")]
+    [TestCase("! yes",       "yes", Description = "the non-specific tag on a word the label handler keeps")]
+    [TestCase("!foo 42",     "42",  Description = "a local tag naming no type")]
+    [TestCase("!!Int 42",    "42",  Description = "a core name in another case")]
+    [TestCase("!!!int 42",   "42",  Description = "a core-schema tag naming !int")]
+    [TestCase("|\n      42", "42",  Description = "a literal block scalar keeping its line break")]
+    public void Rules_ReadsATaggedOrBlockSummaryTheReportReadsAsText(string summary, string text)
+    {
+        WriteStrings("content", $"problems:\n  \"3\":\n    summary: {summary}\n");
+
+        Assert.That(Catalogue().Rules("en").Single().Summary, Is.EqualTo(text));
+    }
+
+    [Test]
+    public void Rules_RefusesATranslationWithATaggedSummaryTheReportDoesNotReadAsText()
+    {
+        WriteStrings("content", English);
+        WriteStrings("content.de", "problems:\n  \"25\":\n    summary: !!bool yes\n");
+
+        Assert.That(() => Catalogue().Rules("de"),
+            Throws.InvalidOperationException.With.Message.Contains("rule 25 has a 'summary' tagged"));
     }
 
     [Test]

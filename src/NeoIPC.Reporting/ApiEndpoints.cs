@@ -53,7 +53,7 @@ static class ApiEndpoints
 
         // Report-layer configuration the app reads to drive its forms: content
         // presets (runtime-read from the toolkit's presets.json), supported
-        // locales (the report-language registry) and the Validation Report's
+        // locales (the report-language registry), and the Validation Report's
         // rule catalogue (its content/_sR.yaml plus the language overlay). All
         // gated at the report tier.
         app.MapGet("reference-report/presets",

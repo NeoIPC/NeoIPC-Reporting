@@ -7,7 +7,7 @@ namespace NeoIPC.Reporting;
 /// <summary>
 /// Minimal-API handlers for the report-configuration endpoints the app
 /// reads to drive its forms: the content <b>presets</b>, the supported
-/// <b>locales</b> and the Validation Report's <b>rule catalogue</b>. All
+/// <b>locales</b>, and the Validation Report's <b>rule catalogue</b>. All
 /// derive from the report layer (the Surveillance-Toolkit tree mounted at
 /// <see cref="ReportingOptions.ReportsSourceDir"/>) rather than from the
 /// .NET API surface, so a change to them, such as a rule added to the
@@ -114,7 +114,7 @@ public static class ReportConfigEndpoints
     /// Reads from the Validation Report's rule catalogue through
     /// <paramref name="read"/>. When the report's string resources cannot be
     /// read (missing, unreadable, or malformed: an <see cref="IOException"/>,
-    /// <see cref="UnauthorizedAccessException"/> or
+    /// <see cref="UnauthorizedAccessException"/>, or
     /// <see cref="InvalidOperationException"/>), the exception goes to
     /// <paramref name="logger"/> and <paramref name="problem"/> is a 500 whose
     /// detail names no path: the exception names one in the server's file

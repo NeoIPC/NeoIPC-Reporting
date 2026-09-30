@@ -187,10 +187,15 @@ ignore `NEOIPCR_DEV_PATH`; `workspace` images export it as `/neoipcr`.
   `Dhis2BaseUrl`, which only the cluster can resolve. It is never read
   from a request. The service refuses to start on one that is not
   `http(s)://host[:port][/path]` as written, with a host of ASCII
-  letters, digits, `-`, `_` and dots and a path of plain characters and
-  `%`-escapes — so no whitespace, credentials, IPv6 literal, query or
+  letters, digits, `-`, `_`, and dots and a path of plain characters and
+  `%`-escapes — so no whitespace, credentials, IPv6 literal, query, or
   fragment — and, while it is unset, on a `Dhis2BaseUrl` whose address
-  would not pass as one. No refusal repeats the value.
+  would not pass as one, such as an IPv6 literal or a context path
+  containing `;` or `(`. Only the Validation Report writes these links,
+  yet that refusal stops the whole service: it is deliberately at
+  startup, so a deployment learns of the misconfiguration when it
+  deploys rather than on the first Validation Report render. No refusal
+  repeats the value.
 - **Read-only resource trees.** The image's `/toolkit/` and (in
   workspace mode) `/neoipcr/` trees are `chmod -R a-w` at build time.
   The render path only ever reads them — it copies the rendered

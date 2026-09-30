@@ -392,8 +392,8 @@ RUN mkdir -p /opt/quarto && \
 # the licence that goes with them).
 # ----------------------------------------------------------------------------
 # Debian's fonts-ebgaramond is the unfinished original release, whose bold face lacks the subscript
-# digits, ≥ and −, so a bold Q₁ table header renders as boxes with it; the completed static OTFs of
-# the EBGaramond12 repository carry them in every face. The reports use the regular, italic, bold and
+# digits, ≥, and −, so a bold Q₁ table header renders as boxes with it; the completed static OTFs of
+# the EBGaramond12 repository carry them in every face. The reports use the regular, italic, bold, and
 # bold italic faces of the family "EB Garamond". The SIL OFL requires its text and the copyright
 # notice to accompany every copy of the fonts; a published image is a copy, so the repository's
 # OFL.txt ships beside them.
