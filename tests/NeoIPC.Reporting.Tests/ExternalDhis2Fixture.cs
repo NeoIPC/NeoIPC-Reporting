@@ -31,7 +31,7 @@ namespace NeoIPC.Reporting.Tests;
 ///   <c>admin</c> / <c>district</c>).</description></item>
 ///   <item><description><c>NEOIPC_TEST_DEPARTMENT_CODE</c> — the seeded
 ///   test department's org-unit code (default <c>AT_TEST_TEST</c>, the play
-///   package's regular test department); the render test self-skips when no
+///   package's regular test department); the render tests self-skip when no
 ///   organisation unit carries that code.</description></item>
 /// </list>
 /// <para>

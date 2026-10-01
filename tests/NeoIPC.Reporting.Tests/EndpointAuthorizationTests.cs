@@ -38,6 +38,7 @@ public class EndpointAuthorizationTests
         // host defaults to the Production environment (no build-time DI
         // validation).
         builder.Services.AddSingleton<ReportLanguageRegistry>();
+        builder.Services.AddSingleton<ValidationRuleCatalogue>();
         builder.Services.AddSingleton<ReferenceDataStorage>();
         builder.Services.AddSingleton<ValidationExceptionStorage>();
         builder.Services.AddSingleton<ReferenceDataMetadataExtractor>();

@@ -1,16 +1,18 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 
 namespace NeoIPC.Reporting;
 
 /// <summary>
-/// Minimal-API handlers for the two report-configuration endpoints the
-/// app reads to drive its forms: the content <b>presets</b> and the
-/// supported <b>locales</b>. Both derive from the report layer (the
-/// Surveillance-Toolkit tree mounted at
+/// Minimal-API handlers for the report-configuration endpoints the app
+/// reads to drive its forms: the content <b>presets</b>, the supported
+/// <b>locales</b>, and the Validation Report's <b>rule catalogue</b>. All
+/// derive from the report layer (the Surveillance-Toolkit tree mounted at
 /// <see cref="ReportingOptions.ReportsSourceDir"/>) rather than from the
-/// .NET API surface, so they change with the report without an app or
-/// backend release.
+/// .NET API surface, so a change to them, such as a rule added to the
+/// Validation Report, needs no change to this service or to the app; a
+/// released image picks it up with the reports release it pins.
 /// </summary>
 public static class ReportConfigEndpoints
 {
@@ -67,6 +69,77 @@ public static class ReportConfigEndpoints
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(tag => tag, StringComparer.Ordinal)
             .ToArray());
+
+    /// <summary>
+    /// Returns the Validation Report's rule catalogue as <c>{ rules: [{ id, summary }] }</c>,
+    /// ascending by id, each summary in the language <paramref name="locale"/>
+    /// names where the report carries that translation and in English
+    /// otherwise; see <see cref="ValidationRuleCatalogue"/>. Without
+    /// <paramref name="locale"/> the summaries are English. A locale the report
+    /// does not serve is a 400, as on the render endpoint, so the app can ask
+    /// again in English.
+    /// </summary>
+    public static IResult ValidationRules(
+        string? locale, ValidationRuleCatalogue catalogue, ReportLanguageRegistry registry,
+        ILoggerFactory loggerFactory)
+    {
+        var unsafeInput = InputValidation.RejectUnsafeStrings((nameof(locale), locale));
+        if (unsafeInput is not null) return unsafeInput;
+
+        var language = "en";
+        if (!string.IsNullOrWhiteSpace(locale))
+        {
+            var served = registry.ForReport(QuartoValidationReportProducer.ReportName).Keys
+                .ToHashSet(StringComparer.Ordinal);
+            var resolution = LocaleResolver.Resolve(locale, [], served);
+            if (resolution is not { Status: LocaleResolver.Status.Resolved, Locale: { } resolved })
+                return ProblemDetailsHelper.BadRequest(
+                    ProblemCodes.UnsupportedLocale,
+                    "Unsupported locale",
+                    $"The 'locale' parameter '{locale}' is not supported by this report.");
+            language = resolved.Language;
+        }
+
+        if (!TryReadRuleCatalogue(() => catalogue.Rules(language),
+                loggerFactory.CreateLogger(typeof(ReportConfigEndpoints)), out var rules, out var problem))
+            return problem;
+
+        return Results.Ok(new
+        {
+            rules = rules.Select(r => new { id = r.Id, summary = r.Summary }),
+        });
+    }
+
+    /// <summary>
+    /// Reads from the Validation Report's rule catalogue through
+    /// <paramref name="read"/>. When the report's string resources cannot be
+    /// read (missing, unreadable, or malformed: an <see cref="IOException"/>,
+    /// <see cref="UnauthorizedAccessException"/>, or
+    /// <see cref="InvalidOperationException"/>), the exception goes to
+    /// <paramref name="logger"/> and <paramref name="problem"/> is a 500 whose
+    /// detail names no path: the exception names one in the server's file
+    /// system, which stays in the log.
+    /// </summary>
+    internal static bool TryReadRuleCatalogue<T>(
+        Func<T> read, ILogger logger,
+        [MaybeNullWhen(false)] out T value, [NotNullWhen(false)] out IResult? problem)
+    {
+        try
+        {
+            value = read();
+            problem = null;
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            logger.LogError(e, "The Validation Report's rule catalogue could not be read.");
+            value = default;
+            problem = Results.Problem(statusCode: StatusCodes.Status500InternalServerError,
+                title: "Rule catalogue unavailable",
+                detail: "The Validation Report's rule catalogue could not be read from the report sources.");
+            return false;
+        }
+    }
 
     /// <summary>The lower-cased BCP-47 language subtag of a locale tag (<c>en-GB</c> → <c>en</c>).</summary>
     static string LanguageSubtag(string tag) => tag.Split('-', '_')[0].ToLowerInvariant();

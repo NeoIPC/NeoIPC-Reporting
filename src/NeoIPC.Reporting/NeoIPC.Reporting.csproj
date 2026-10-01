@@ -12,6 +12,7 @@
     <PackageReference Include="AngleSharp" Version="1.8.0" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0" />
+    <PackageReference Include="YamlDotNet" Version="18.1.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -19,9 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\NeoIPC.Reporting.Generators\NeoIPC.Reporting.Generators.csproj"
-                      OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\NeoIPC.Reporting.Generators\NeoIPC.Reporting.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <!-- Committed JSON snapshots of the upstream Surveillance-Toolkit report
@@ -32,6 +31,7 @@
   <ItemGroup>
     <AdditionalFiles Include="Schemas\Partner-Report.qmd-schema.json" />
     <AdditionalFiles Include="Schemas\Reference-Report.qmd-schema.json" />
+    <AdditionalFiles Include="Schemas\Validation-Report.qmd-schema.json" />
   </ItemGroup>
 
   <!-- <AdditionalFiles Include="..."> does not fail when a path is missing;
@@ -39,10 +39,9 @@
        build would then fail with a less obvious NRP001 from each downstream
        [RenderParameter] property. Surface the real cause up-front. -->
   <Target Name="EnsureReportSchemas" BeforeTargets="CoreCompile">
-    <Error Condition="!Exists('$(MSBuildThisFileDirectory)Schemas\Partner-Report.qmd-schema.json')"
-           Text="Missing Schemas\Partner-Report.qmd-schema.json. Regenerate the committed report-schema snapshots from the upstream report sources." />
-    <Error Condition="!Exists('$(MSBuildThisFileDirectory)Schemas\Reference-Report.qmd-schema.json')"
-           Text="Missing Schemas\Reference-Report.qmd-schema.json. Regenerate the committed report-schema snapshots from the upstream report sources." />
+    <Error Condition="!Exists('$(MSBuildThisFileDirectory)Schemas\Partner-Report.qmd-schema.json')" Text="Missing Schemas\Partner-Report.qmd-schema.json. Regenerate the committed report-schema snapshots from the upstream report sources." />
+    <Error Condition="!Exists('$(MSBuildThisFileDirectory)Schemas\Reference-Report.qmd-schema.json')" Text="Missing Schemas\Reference-Report.qmd-schema.json. Regenerate the committed report-schema snapshots from the upstream report sources." />
+    <Error Condition="!Exists('$(MSBuildThisFileDirectory)Schemas\Validation-Report.qmd-schema.json')" Text="Missing Schemas\Validation-Report.qmd-schema.json. Regenerate the committed report-schema snapshots from the upstream report sources." />
   </Target>
 
   <ItemGroup>

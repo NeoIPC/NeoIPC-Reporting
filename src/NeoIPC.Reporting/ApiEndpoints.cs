@@ -42,10 +42,20 @@ static class ApiEndpoints
                 Results.Ok(new { fields = PartnerReportApiParameters.Schema }))
             .WithName("GetPartnerReportParameters")
             .WithMetadata(new PublicEndpoint("static source-generated parameter schema; no data"));
+        app.MapGet("validation-report", ValidationReport.Get)
+            .WithName("GetValidationReport")
+            .WithMetadata(new InHandlerAuthorized("NeoIpcReport"))
+            .WithRequestTimeout(TimeSpan.FromSeconds(360));
+        app.MapGet("validation-report/parameters", () =>
+                Results.Ok(new { fields = ValidationReportApiParameters.Schema }))
+            .WithName("GetValidationReportParameters")
+            .WithMetadata(new PublicEndpoint("static source-generated parameter schema; no data"));
 
         // Report-layer configuration the app reads to drive its forms: content
-        // presets (runtime-read from the toolkit's presets.json) and supported
-        // locales (the report-language registry). Both gated at the report tier.
+        // presets (runtime-read from the toolkit's presets.json), supported
+        // locales (the report-language registry), and the Validation Report's
+        // rule catalogue (its content/_sR.yaml plus the language overlay). All
+        // gated at the report tier.
         app.MapGet("reference-report/presets",
                 (IOptions<ReportingOptions> o) =>
                     ReportConfigEndpoints.Presets(QuartoReferenceReportProducer.ReportName, o))
@@ -65,6 +75,18 @@ static class ApiEndpoints
                 (ReportLanguageRegistry r) =>
                     ReportConfigEndpoints.Locales(QuartoPartnerReportProducer.ReportName, r))
             .WithName("GetPartnerReportLocales")
+            .RequireAuthorization("NeoIpcReport");
+        // The Validation Report has no presets; its form lists the rules instead,
+        // read from the report's own string resources.
+        app.MapGet("validation-report/locales",
+                (ReportLanguageRegistry r) =>
+                    ReportConfigEndpoints.Locales(QuartoValidationReportProducer.ReportName, r))
+            .WithName("GetValidationReportLocales")
+            .RequireAuthorization("NeoIpcReport");
+        app.MapGet("validation-report/rules",
+                (string? locale, ValidationRuleCatalogue c, ReportLanguageRegistry r, ILoggerFactory l) =>
+                    ReportConfigEndpoints.ValidationRules(locale, c, r, l))
+            .WithName("GetValidationReportRules")
             .RequireAuthorization("NeoIpcReport");
 
         // Report-tier listing — partners pick a referenceDataId from this

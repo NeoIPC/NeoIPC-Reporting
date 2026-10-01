@@ -113,4 +113,25 @@ public class ParametersEndpointTests
         Assert.That(fields.ValueKind, Is.EqualTo(JsonValueKind.Array));
         Assert.That(fields.GetArrayLength(), Is.GreaterThan(0));
     }
+
+    [Test]
+    public async Task ValidationReportParameters_ListTheThreeCallerParameters()
+    {
+        // The exception file and the dhis2* params are server-side and must not
+        // appear; rules is the integer[] the app's per-rule toggles send.
+        Assert.That(_http, Is.Not.Null);
+        var response = await _http!.GetAsync("/validation-report/parameters");
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
+        var doc = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.That(doc.TryGetProperty("fields", out var fields), Is.True);
+        var byName = fields.EnumerateArray().ToDictionary(
+            f => f.GetProperty("name").GetString()!, f => f.GetProperty("type").GetString());
+        Assert.That(byName, Is.EquivalentTo(new Dictionary<string, string?>
+        {
+            ["departmentFilter"] = "character[]",
+            ["rules"] = "integer[]",
+            ["includeTestData"] = "logical",
+        }));
+    }
 }

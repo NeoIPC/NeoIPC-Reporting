@@ -71,12 +71,13 @@ public sealed class Dhis2SessionClient
             // that does not answer in time cannot vouch for anyone, so the request is
             // unauthenticated rather than failed. A hang lasting exactly the timeout
             // is what a resolver that holds an unknown name open instead of refusing
-            // it produces, which is why the message names that cause.
+            // it produces, which is why the message names that cause. The address is
+            // logged without the query the setting may carry, which could hold a token.
             _logger.LogWarning(ex,
                 "DHIS2 /api/me did not answer within {Timeout}: DHIS2 is unreachable at {BaseUri}, " +
                 "or its host name did not resolve in time (a VPN resolver can hold an unknown " +
                 "name until the timeout instead of refusing it).",
-                _http.Timeout, _endpoint.BaseUri);
+                _http.Timeout, _endpoint.BaseUri.GetLeftPart(UriPartial.Path));
             return null;
         }
 

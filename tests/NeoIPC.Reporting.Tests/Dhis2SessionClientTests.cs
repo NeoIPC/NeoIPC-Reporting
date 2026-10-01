@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NeoIPC.Reporting.Authorization;
 using NUnit.Framework;
@@ -127,6 +128,34 @@ public class Dhis2SessionClientTests
 
         Assert.That(info, Is.Null,
             "a DHIS2 that does not answer in time cannot vouch for the session");
+    }
+
+    /// <summary>Records the formatted text of every entry logged.</summary>
+    sealed class RecordingLogger : ILogger<Dhis2SessionClient>
+    {
+        public List<string> Messages { get; } = [];
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) => Messages.Add(formatter(state, exception));
+    }
+
+    [Test]
+    public async Task GetUserInfo_WhenDhis2DoesNotAnswer_LogsItsAddressWithoutTheQuery()
+    {
+        using var http = new HttpClient(new NeverAnsweringHandler())
+        {
+            Timeout = TimeSpan.FromMilliseconds(100),
+        };
+        var logger = new RecordingLogger();
+        var client = new Dhis2SessionClient(
+            http, Dhis2Endpoint.Build("http://192.0.2.1:8080/dhis?token=s3cret"), logger);
+
+        await client.GetUserInfoAsync("session", CancellationToken.None);
+
+        Assert.That(logger.Messages, Has.One.Contains("unreachable at http://192.0.2.1:8080/dhis,")
+            .And.None.Contains("s3cret"));
     }
 
     [Test]

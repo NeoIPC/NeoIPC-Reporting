@@ -16,8 +16,9 @@ a department its results back.
 
 ## What it does
 
-- **Renders reports on demand** — currently the Partner Report a department receives and the
-  network-wide Reference Report. A render runs Quarto over the toolkit's report sources,
+- **Renders reports on demand** — currently the Partner Report a department receives, the
+  network-wide Reference Report, and the Validation Report, which lists the records the NeoIPC
+  validation rules flag. A render runs Quarto over the toolkit's report sources,
   with the [neoipcr](https://github.com/NeoIPC/neoipcr) R package pulling and computing the
   data behind them.
 - **Serves the underlying datasets as JSON**, for callers that want the numbers rather than
@@ -99,7 +100,9 @@ Change `Reporting:ReportsSourceDir` / `Reporting:NeoIpcrDevPath` if you keep the
 For DHIS2 authentication and live data, run a DHIS2 instance alongside it and point
 `Reporting:Dhis2BaseUrl` at it through the `Reporting__Dhis2BaseUrl` environment variable —
 the service loads `appsettings.json` and `appsettings.Development.json` only, so a
-`.local.json` overlay would be read by nothing.
+`.local.json` overlay would be read by nothing. When the browser reaches that DHIS2 at another
+address, set `Reporting:Dhis2PublicBaseUrl` (`Reporting__Dhis2PublicBaseUrl`) to it too: the
+reports' links to DHIS2, such as the Validation Report's Tracker Capture dashboards, use it.
 
 ## Build modes (Docker)
 
@@ -177,10 +180,27 @@ ignore `NEOIPCR_DEV_PATH`; `workspace` images export it as `/neoipcr`.
   the in-cluster DHIS2 service. In Compose this is the default-bridge
   network behaviour; on Kubernetes apply a `NetworkPolicy` that allows
   only that destination.
+- **The users' DHIS2 address.** `Reporting:Dhis2PublicBaseUrl` is the
+  base URL the users' browsers reach DHIS2 at, with its context path.
+  The reports' links to DHIS2 are built from it, so a deployment whose
+  `Dhis2BaseUrl` is an in-cluster name sets it; unset, the links go to
+  `Dhis2BaseUrl`, which only the cluster can resolve. It is never read
+  from a request. The service refuses to start on one that is not
+  `http(s)://host[:port][/path]` as written, with a host of ASCII
+  letters, digits, `-`, `_`, and dots and a path of plain characters and
+  `%`-escapes — so no whitespace, credentials, IPv6 literal, query, or
+  fragment — and, while it is unset, on a `Dhis2BaseUrl` whose address
+  would not pass as one, such as an IPv6 literal or a context path
+  containing `;` or `(`. Only the Validation Report writes these links,
+  yet that refusal stops the whole service: it is deliberately at
+  startup, so a deployment learns of the misconfiguration when it
+  deploys rather than on the first Validation Report render. No refusal
+  repeats the value.
 - **Read-only resource trees.** The image's `/toolkit/` and (in
   workspace mode) `/neoipcr/` trees are `chmod -R a-w` at build time.
-  The render path only ever creates symlinks pointing into them, so
-  the immutability is the load-bearing defense; runtime
+  The render path only ever reads them — it copies the rendered
+  report's own directory into its workdir and symlinks the shared
+  resources — so the immutability is the load-bearing defense; runtime
   `read_only: true` on the whole container is not used because the
   Quarto + R subprocesses write to a number of cache paths under
   `/home/app/.*` that would each need explicit tmpfs mounts. The

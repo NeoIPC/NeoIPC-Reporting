@@ -169,12 +169,13 @@ jobs:
     # integration suite. --target r-runtime exercises the shared parent
     # stage the r-runtime refactor introduced; --target build exercises
     # the .NET build stage and everything it transitively pulls in;
-    # --target tinytex-builder and --target quarto-downloader carry the two
-    # ADD --checksum pins, and are where a bump fails when its checksum, or
-    # for TinyTeX its snapshot, is wrong. Those last two reach the image only
-    # through the stage it is assembled from, and no pull-request job
-    # assembles it — that is the dispatch-only container job and the release
-    # workflow — so without these steps a bad pin first surfaces on a tag.
+    # --target tinytex-builder, --target quarto-downloader, and
+    # --target ebgaramond-downloader carry the download pins (ADD --checksum),
+    # and are where a bump fails when a checksum, or for TinyTeX its snapshot,
+    # is wrong. Those three reach the image only through the stage it is
+    # assembled from, and no pull-request job assembles it — that is the
+    # dispatch-only container job and the release workflow — so without these
+    # steps a bad pin first surfaces on a tag.
     name: Dockerfile sanity build
     runs-on: ubuntu-latest
     steps:
@@ -208,9 +209,16 @@ jobs:
           --target quarto-downloader
           -t neoipc-reporting:quarto-downloader
           .
+      - name: Build ebgaramond-downloader stage
+        run: >
+          docker build
+          -f src/NeoIPC.Reporting/Dockerfile
+          --target ebgaramond-downloader
+          -t neoipc-reporting:ebgaramond-downloader
+          .
 
   container:
-    # Container smoke tests (NegativePathTests / ParametersEndpointTests):
+    # Container smoke tests (NegativePathTests / ParametersEndpointTests / ImageFontTests):
     # build the image and exercise it in isolation via Testcontainers with a
     # placeholder session. This is the repository's own self-contained gate —
     # it needs Docker and a built image, so it runs on manual dispatch (the

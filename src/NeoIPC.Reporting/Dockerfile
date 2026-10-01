@@ -11,9 +11,9 @@
 #     still pulls resolute security updates for the apt-managed libraries.
 #   * Version ARGs hold the bare number (no leading `v`); the `v` is prepended at
 #     the URL where the upstream tag carries one (TinyTeX, Quarto).
-#   * The TinyTeX / Quarto `ADD --checksum` values are version-coupled and stay
-#     inline at their ADD lines — bump the checksum together with the matching
-#     version ARG here.
+#   * The TinyTeX / Quarto / EB Garamond `ADD --checksum` values are version-coupled
+#     and stay inline at their ADD lines — bump the checksum together with the
+#     matching version ARG here.
 #   * TINYTEX_TLNET_SNAPSHOT must track TINYTEX_VERSION: the archive day has to fall
 #     inside the window tlmgr accepts for the bundle — see the tinytex-builder stage.
 # ----------------------------------------------------------------------------
@@ -23,6 +23,9 @@ ARG ALPINE_GIT_IMAGE=alpine/git:v2.54.0@sha256:6f3b5029566da8e90b24945933dcd806b
 ARG TINYTEX_VERSION=2026.09
 ARG TINYTEX_TLNET_SNAPSHOT=2026/08/31
 ARG QUARTO_VERSION=1.10.18
+# EB Garamond from the EBGaramond12 repository (github.com/octaviopardo/EBGaramond12, SIL OFL
+# 1.1), a commit of that repository: it has no releases.
+ARG EBGARAMOND_COMMIT=106a4a6d377987459ae5e68673a4570f13b957fb
 # R (r-base-core) and the r-cran-* packages are deliberately NOT pinned in this inventory:
 # r2u is a rolling current-CRAN mirror with no dated snapshots and no old-version retention,
 # so a version pin can't be held — they track CRAN, and a deliberate validated rebuild is the
@@ -167,11 +170,9 @@ RUN set -eu; \
     done; \
     # Drop Quarto's per-project scratch/cache dir if a dirty source tree (e.g. a
     # workspace-mode COPY of a working checkout where someone rendered a report
-    # locally) carried one in. It is regenerated on every render and /toolkit is
-    # made read-only in the final image, so a baked .quarto would symlink Quarto's
-    # write targets (project-cache/deno-kv-file) to read-only storage and every
-    # render would fail to open its project cache. The per-render symlink-forest
-    # (QuartoReportProducer) excludes it too; this is the build-phase half.
+    # locally) carried one in. It is regenerated on every render and is never a
+    # source input; QuartoReportProducer leaves it out of every render's workdir
+    # as well, and this is the build-phase half.
     find /toolkit-output -type d -name .quarto -prune -exec rm -rf {} +
 
 # ----------------------------------------------------------------------------
@@ -387,6 +388,34 @@ RUN mkdir -p /opt/quarto && \
            /opt/quarto/share/jupyter
 
 # ----------------------------------------------------------------------------
+# Stage: EB Garamond (the four faces the Partner and Reference Reports set, and
+# the licence that goes with them).
+# ----------------------------------------------------------------------------
+# Debian's fonts-ebgaramond is the unfinished original release, whose bold face lacks the subscript
+# digits, ≥, and −, so a bold Q₁ table header renders as boxes with it; the completed static OTFs of
+# the EBGaramond12 repository carry them in every face. The reports use the regular, italic, bold, and
+# bold italic faces of the family "EB Garamond". The SIL OFL requires its text and the copyright
+# notice to accompany every copy of the fonts; a published image is a copy, so the repository's
+# OFL.txt ships beside them.
+FROM scratch AS ebgaramond-downloader
+ARG EBGARAMOND_COMMIT
+ADD --chmod=644 --checksum=sha256:8d618a6bc6e1f4444e1990c39770a62ccbc29394e57afcc58acd530c16489275 \
+    https://raw.githubusercontent.com/octaviopardo/EBGaramond12/${EBGARAMOND_COMMIT}/fonts/otf/EBGaramond-Regular.otf \
+    /ebgaramond/EBGaramond-Regular.otf
+ADD --chmod=644 --checksum=sha256:296feee09f6fa157f913cf3d75460b5e282b3c43dff4ddffbcc5c1a924f4fd14 \
+    https://raw.githubusercontent.com/octaviopardo/EBGaramond12/${EBGARAMOND_COMMIT}/fonts/otf/EBGaramond-Italic.otf \
+    /ebgaramond/EBGaramond-Italic.otf
+ADD --chmod=644 --checksum=sha256:2832055876314e4932c46809e919a45fd726a53faa6bfae53be9628723bde90f \
+    https://raw.githubusercontent.com/octaviopardo/EBGaramond12/${EBGARAMOND_COMMIT}/fonts/otf/EBGaramond-Bold.otf \
+    /ebgaramond/EBGaramond-Bold.otf
+ADD --chmod=644 --checksum=sha256:c010c63d6924e0dec2fedc1b0cb57e86ae9047bb0e9651ea603b0967d6e3072e \
+    https://raw.githubusercontent.com/octaviopardo/EBGaramond12/${EBGARAMOND_COMMIT}/fonts/otf/EBGaramond-BoldItalic.otf \
+    /ebgaramond/EBGaramond-BoldItalic.otf
+ADD --chmod=644 --checksum=sha256:058611bd968817d532cedeab6acaa055e882d365a88523df00e7917ad7a0f704 \
+    https://raw.githubusercontent.com/octaviopardo/EBGaramond12/${EBGARAMOND_COMMIT}/OFL.txt \
+    /ebgaramond/OFL.txt
+
+# ----------------------------------------------------------------------------
 # Stage: runtime base (R + locales + fonts + Quarto + TinyTeX + toolkit).
 # Inherits R + the binary CRAN packages from r-runtime; adds only what's
 # unique to the final image (fonts, locales, Quarto, TinyTeX, toolkit).
@@ -403,12 +432,13 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     # resolute-patched versions rather than the base image's snapshot.
     apt-get -qq upgrade -y && \
     apt-get -qq install --no-install-recommends \
-        fonts-ebgaramond \
-        fonts-ebgaramond-extra \
         fonts-noto-core \
         fonts-noto-extra \
         locales && \
     locale-gen de_DE.UTF-8 el_GR.UTF-8 en_GB.UTF-8 es_ES.UTF-8 et_EE.UTF-8 it_IT.UTF-8 tr_TR.UTF-8  # keep in sync with LocaleResolver.DefaultTerritories — an ungenerated locale crashes lualatex/tlmgr
+
+COPY --from=ebgaramond-downloader /ebgaramond/ /usr/share/fonts/opentype/ebgaramond/
+RUN fc-cache -f /usr/share/fonts/opentype/ebgaramond
 
 # Attack-surface reduction: drop build-/desktop-only packages that have no role
 # at render time, so they neither ship in nor get scanned against the image.
@@ -423,10 +453,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # 'Rscript'". It is desktop tooling we never invoke, but apt will not keep R
 # installed without it, so it stays.
 # Named purge only — NO `autoremove`. A blanket `autoremove --purge` here also
-# sweeps fontconfig (whose /etc/fonts/conf.d the next step writes into, and
-# which the font-rendering path needs), so we remove only these targets and
-# leave their orphaned deps in place. The python3 interpreter therefore stays —
-# patched by the apt upgrade above, and not reachable from any runtime path.
+# sweeps fontconfig, which the font-rendering path needs, so we remove only
+# these targets and leave their orphaned deps in place. The python3
+# interpreter therefore stays — patched by the apt upgrade above, and not
+# reachable from any runtime path.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get -qq purge -y \
@@ -451,14 +481,13 @@ COPY --from=reports-builder /toolkit-output /toolkit
 COPY --from=r-builder /usr/local/lib/R/site-library /usr/local/lib/R/site-library
 COPY --from=quarto-downloader /opt/quarto /opt/quarto
 RUN ln -s /opt/quarto/bin/quarto /usr/local/bin/quarto && \
-    ln -s /opt/quarto/bin/tools/x86_64/pandoc /usr/local/bin/pandoc && \
-    printf '<fontconfig>\n  <selectfont>\n      <rejectfont>\n          <glob>/usr/share/fonts/woff/*</glob>\n      </rejectfont>\n  </selectfont>\n</fontconfig>\n' > /etc/fonts/conf.d/70-no-woff.conf
+    ln -s /opt/quarto/bin/tools/x86_64/pandoc /usr/local/bin/pandoc
 COPY --from=tinytex-builder --chown=$APP_UID /home/app/.TinyTeX /home/app/.TinyTeX
 ENV PATH="/home/app/.TinyTeX/bin/x86_64-linux:$PATH"
 
-# Lock down /toolkit (read-only at runtime). The render path only ever creates
-# symlinks pointing into here; nothing should be writing to /toolkit. A
-# defence-in-depth complement to the per-render symlink-forest model.
+# Lock down /toolkit (read-only at runtime). The render path only reads from
+# here — it copies the rendered report's directory into its workdir and
+# symlinks the shared resources — so nothing should be writing to /toolkit.
 RUN chmod -R a-w /toolkit
 
 # Pre-create the reporting file-storage roots owned by the app user so a named

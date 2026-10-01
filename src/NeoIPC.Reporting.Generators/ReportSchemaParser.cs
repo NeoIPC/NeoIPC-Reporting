@@ -151,6 +151,7 @@ internal static class ReportSchemaParser
             "character" => "string?",
             "character[]" => "string[]?",
             "integer" => "int?",
+            "integer[]" => "int[]?",
             "numeric" => "double?",
             "logical" => "bool?",
             "Date" => "DateOnly?",

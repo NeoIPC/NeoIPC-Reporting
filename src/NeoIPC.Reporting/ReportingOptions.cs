@@ -27,9 +27,8 @@ public sealed class ReportingOptions
     /// <summary>
     /// Per-render scratch root. Each render creates a fresh
     /// <c>render_&lt;random&gt;/</c> subdirectory under here. The
-    /// per-render dir contains a symlink-tree layout (see
-    /// <see cref="QuartoReportProducer"/>) that mirrors the toolkit's
-    /// repo structure so the QMD's relative reaches
+    /// per-render dir mirrors the toolkit's repo structure (see
+    /// <see cref="QuartoReportProducer"/>) so the QMD's relative reaches
     /// (<c>../common.yaml</c>, <c>../../glossary.yaml</c>, etc.) resolve.
     /// </summary>
     public string ReportsTempDir { get; set; } =
@@ -37,18 +36,46 @@ public sealed class ReportingOptions
 
     /// <summary>
     /// In-cluster DHIS2 base URL. Drives both the .NET-side admin-auth
-    /// call to <c>/api/me</c> and (eventually) the R-side surveillance
-    /// data fetch — single source of truth so an attacker can't redirect
+    /// call to <c>/api/me</c> and the R-side surveillance data fetch —
+    /// single source of truth so an attacker can't redirect
     /// session-bearing traffic by flipping just one of the two.
     /// </summary>
     /// <remarks>
     /// Validated at startup by <see cref="Dhis2Endpoint"/> (rejects
     /// non-http/s schemes, userinfo, and loopback / unspecified
-    /// addresses). The default matches the Compose service name; a
-    /// non-default value should only ever come from a trusted deployment
-    /// configuration.
+    /// addresses). While <see cref="Dhis2PublicBaseUrl"/> is unset, this
+    /// address without its query and fragment is also the base of the
+    /// reports' links to DHIS2, and must then have the shape that setting
+    /// is held to, or the service does not start. Only the Validation Report
+    /// writes such links, yet the refusal is deliberately at startup, so a
+    /// deployment learns of the misconfiguration when it deploys rather than
+    /// on the first Validation Report render. The default matches the
+    /// Compose service name; a non-default value should only ever come from
+    /// a trusted deployment configuration.
     /// </remarks>
     public string Dhis2BaseUrl { get; set; } = "http://dhis2-backend:8080";
+
+    /// <summary>
+    /// Base URL at which the users' browsers reach DHIS2 (scheme, host, port,
+    /// and context path), for the links a report places to DHIS2's own apps,
+    /// such as the Validation Report's Tracker Capture dashboards. Unset, the
+    /// reports link to <see cref="Dhis2BaseUrl"/>, which is right only where
+    /// the users reach DHIS2 at the address the service does.
+    /// </summary>
+    /// <remarks>
+    /// No session travels to this address: it only ends up in the reports,
+    /// so it can differ from <see cref="Dhis2BaseUrl"/> without splitting
+    /// the session-bearing traffic that setting keeps in one place.
+    /// Validated at startup by <see cref="Dhis2Endpoint"/>, as written:
+    /// <c>http://</c> or <c>https://</c>, a host of dot-separated labels of
+    /// ASCII letters, digits, <c>-</c>, and <c>_</c> (so no IPv6 literal), an
+    /// optional port, and a path of ASCII letters, digits, <c>-</c>,
+    /// <c>.</c>, <c>_</c>, <c>~</c>, and <c>%</c>-escapes; no whitespace, no
+    /// userinfo, no query or fragment, and nothing else. Unlike
+    /// <see cref="Dhis2BaseUrl"/>, a loopback host is accepted: on a local
+    /// stack the users' browsers reach DHIS2 at <c>localhost</c>.
+    /// </remarks>
+    public string? Dhis2PublicBaseUrl { get; set; }
 
     /// <summary>
     /// Selects the source-acquisition mode at build time. Used at

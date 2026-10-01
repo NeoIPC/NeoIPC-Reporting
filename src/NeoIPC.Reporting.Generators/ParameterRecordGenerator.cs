@@ -164,6 +164,12 @@ public sealed class ParameterRecordGenerator : IIncrementalGenerator
                 sb.Append("        if (").Append(prop).Append(" is { Length: > 0 })\n");
                 sb.Append("            yield return \"").Append(key).Append(":[\" + string.Join(\",\", ").Append(prop).Append(".Select(EscapeYamlScalar)) + \"]\";\n");
                 break;
+            case "integer[]":
+                // A YAML flow sequence of plain integers needs no quoting; an empty
+                // array is omitted like an absent parameter, so the QMD default holds.
+                sb.Append("        if (").Append(prop).Append(" is { Length: > 0 })\n");
+                sb.Append("            yield return \"").Append(key).Append(":[\" + string.Join(\",\", ").Append(prop).Append(".Select(v => v.ToString(CultureInfo.InvariantCulture))) + \"]\";\n");
+                break;
             case "logical":
                 sb.Append("        if (").Append(prop).Append(".HasValue)\n");
                 sb.Append("            yield return \"").Append(key).Append(":\" + (").Append(prop).Append(".Value ? \"true\" : \"false\");\n");

@@ -9,18 +9,17 @@ namespace NeoIPC.Reporting;
 
 /// <summary>
 /// Base class for any generator that renders a Quarto report. Sets up
-/// a per-render symlink-forest workdir, composes <c>quarto render</c>
+/// a per-render workdir, composes <c>quarto render</c>
 /// invocations with the right profile / language / media-type flags,
 /// and parses the structured Quarto log on failure.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Why a symlink-forest per render: every render needs a private
-/// scratch dir for Quarto's intermediate files (<c>_output/</c>,
-/// <c>_freeze/</c>, etc.) but must not duplicate the report sources
-/// (could be tens of MB). The per-report dir's contents are mirrored
-/// as a tree of symlinks — directory structure is real, files are
-/// symlinks back to the read-only source tree.
+/// Why a workdir per render: every render needs a private scratch dir
+/// for Quarto's intermediate files (<c>_output/</c>, <c>_freeze/</c>,
+/// etc.). The report's own directory is copied into it, file by file;
+/// what the report reaches outside that directory is symlinked back to
+/// the read-only source tree.
 /// </para>
 ///
 /// <para>
@@ -46,16 +45,19 @@ namespace NeoIPC.Reporting;
 ///
 /// <para>
 /// Shared sibling dirs (<c>common/</c>, <c>filters/</c>, <c>logos/</c>)
-/// are exposed as single directory symlinks rather than file-by-file
-/// mirrors: they are read-only resources, never write targets, so a
-/// dir-symlink is correct and saves N file-symlinks per render. The
-/// per-report dir is mirrored file-by-file because Quarto writes
-/// intermediates into it.
+/// are exposed as single directory symlinks rather than copies: they are
+/// read-only resources, never write targets. The per-report dir is
+/// copied because Quarto writes into it and copies the resources the
+/// document references from it into its output directory, setting their
+/// timestamps, which a symlink to a file the service does not own does not
+/// survive (see <see cref="LayOutRenderRoot"/>).
 /// </para>
 ///
 /// <para>
 /// On dispose the entire <c>render_&lt;random&gt;/</c> root is
-/// recursively deleted; the read-only source tree is never touched.
+/// recursively deleted; the read-only source tree is never touched. A
+/// constructor that fails after creating the root deletes it before the
+/// exception leaves, since no caller holds the producer to dispose.
 /// </para>
 /// </remarks>
 abstract class QuartoReportProducer : ExternalProcessReportProducer
@@ -127,6 +129,46 @@ abstract class QuartoReportProducer : ExternalProcessReportProducer
         if (renderRoot == null)
             throw new IOException("Failed to create a temporary directory.");
 
+        DirectoryInfo reportDir;
+        try
+        {
+            reportDir = LayOutRenderRoot(renderRoot, srcRootDir, srcDir, reportName);
+        }
+        catch
+        {
+            // No caller holds this producer yet, so none would dispose of it:
+            // its render root goes here. The setup's own exception is the one
+            // that leaves; a failure to delete is only logged.
+            try
+            {
+                renderRoot.Delete(recursive: true);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                Logger.LogWarning(e, "Could not delete the workdir of a render whose setup failed: {RenderRoot}",
+                    renderRoot.FullName);
+            }
+            throw;
+        }
+
+        _renderRoot = renderRoot;
+        _workingDirectory = reportDir;
+        _quartoLogFilePath = Path.Join(reportDir.FullName, "quarto-log.json");
+        // The report's R code (run inside Quarto via knitr) writes its
+        // structured logger records here; drained alongside the Quarto log.
+        RLogFilePath = Path.Join(reportDir.FullName, "r-log.json");
+        // The unique workdir name doubles as this render's correlation id.
+        RenderId = renderRoot.Name;
+    }
+
+    /// <summary>
+    /// Fills <paramref name="renderRoot"/> with the layout the report's
+    /// relative reaches expect (see the class remarks) and returns the
+    /// report's own directory in it, Quarto's working directory.
+    /// </summary>
+    static DirectoryInfo LayOutRenderRoot(
+        DirectoryInfo renderRoot, DirectoryInfo srcRootDir, DirectoryInfo srcDir, string reportName)
+    {
         var reportsParent = renderRoot.CreateSubdirectory("reports");
 
         // Surface every top-level entry of <ReportsSourceDir>/ except the
@@ -141,9 +183,10 @@ abstract class QuartoReportProducer : ExternalProcessReportProducer
             // A .quarto at the reports-source root is Quarto's regenerable scratch
             // dir, never a source input. Dir-symlinking it would point Quarto's
             // read-write cache targets (project-cache/deno-kv-file) back into the
-            // read-only source mount — the same failure the per-report mirror's
-            // IsUnderQuartoScratch filter prevents. Skip it here too (defensive:
-            // Quarto only opens the report's own .quarto, not a sibling's).
+            // read-only source mount, where Quarto cannot open its project cache
+            // ("unable to open database file"). Skip it, as the per-report copy
+            // does (defensive: Quarto only opens the report's own .quarto, not a
+            // sibling's).
             if (string.Equals(srcChild.Name, QuartoScratchDirName, StringComparison.Ordinal))
                 continue;
             var linkPath = Path.Join(reportsParent.FullName, srcChild.Name);
@@ -170,16 +213,23 @@ abstract class QuartoReportProducer : ExternalProcessReportProducer
             }
         }
 
-        // Per-report dir: file-by-file symlink mirror, since Quarto writes
-        // intermediates here and we need the read-write surface to be
-        // private to this render. Quarto's own scratch/cache directory
-        // (.quarto) is excluded from the mirror: it is regenerated on every
-        // render and is not a source input. A host-side .quarto left by a
-        // developer who rendered the report directly would otherwise be
-        // mirrored as symlinks pointing back into the read-only source mount,
-        // including .quarto/project-cache/deno-kv-file — and Quarto opens that
-        // KV file read-write, so the render fails to open its project cache
-        // ("unable to open database file").
+        // Per-report dir: a file-by-file copy, private to this render. Quarto
+        // writes its intermediates here, and an HTML render copies the local
+        // resources the document references (a screenshot in a problem's
+        // details or a solution, say) into its output directory, setting
+        // their timestamps. It copies a symlink as a symlink and then sets the
+        // timestamps through it (copySymlinkSync in quarto-cli's
+        // src/core/copy.ts), which reaches the source file. Linux lets a
+        // process set a file's timestamps explicitly only when it owns the
+        // file or holds CAP_FOWNER; the image's /toolkit is owned by root and
+        // the service runs as the image's non-root app user, without that
+        // capability (the compose file drops them all), so that fails the
+        // render whatever the file's mode. The copies work because the
+        // service owns them — so the report's own files are copies, not
+        // links. Quarto's own scratch/cache directory (.quarto) is
+        // left out: it is regenerated on every render and is not a source
+        // input, and one left by a developer who rendered the report directly
+        // would be a stale project cache.
         var reportDir = reportsParent.CreateSubdirectory(reportName);
         Parallel.ForEach(
             srcDir.EnumerateDirectories("*", SearchOption.AllDirectories)
@@ -190,25 +240,16 @@ abstract class QuartoReportProducer : ExternalProcessReportProducer
             srcDir.EnumerateFiles("*", SearchOption.AllDirectories)
                 .Where(f => f.Name != ".gitignore" && !IsUnderQuartoScratch(srcDir, f)),
             srcFile =>
-                File.CreateSymbolicLink(
+                srcFile.CopyTo(
                     Path.Join(reportDir.FullName,
-                        Path.GetRelativePath(srcDir.FullName, srcFile.FullName)),
-                    srcFile.FullName));
+                        Path.GetRelativePath(srcDir.FullName, srcFile.FullName))));
 
-        _renderRoot = renderRoot;
-        _workingDirectory = reportDir;
-        _quartoLogFilePath = Path.Join(reportDir.FullName, "quarto-log.json");
-        // The report's R code (run inside Quarto via knitr) writes its
-        // structured logger records here; drained alongside the Quarto log.
-        RLogFilePath = Path.Join(reportDir.FullName, "r-log.json");
-        // The unique workdir name doubles as this render's correlation id.
-        RenderId = renderRoot.Name;
+        return reportDir;
     }
 
     // Quarto's per-project scratch/cache directory. Never a source input
-    // (Quarto recreates it each render); excluded from the symlink-forest
-    // mirror so its read-write targets are not symlinked back to the
-    // read-only source mount — see the per-report mirror in the constructor.
+    // (Quarto recreates it each render), so it is left out of every
+    // render's workdir — see LayOutRenderRoot.
     const string QuartoScratchDirName = ".quarto";
 
     static bool IsUnderQuartoScratch(DirectoryInfo srcRoot, FileSystemInfo entry)
@@ -232,7 +273,7 @@ abstract class QuartoReportProducer : ExternalProcessReportProducer
     protected string ReportFileName { get; }
 
     /// <summary>
-    /// The per-render workdir where the symlink-forest lives. Subclasses
+    /// The per-render workdir, the Quarto project's directory. Subclasses
     /// can stage extra files into this dir before <c>Generate()</c>
     /// fires (e.g. <see cref="QuartoPartnerReportProducer"/> stages a
     /// transient partner-data JSON here in online mode).
