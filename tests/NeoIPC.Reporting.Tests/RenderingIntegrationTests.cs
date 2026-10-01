@@ -116,6 +116,10 @@ public class RenderingIntegrationTests
         Assert.That(bytes.Length, Is.GreaterThan(1000), "the PDF must not be empty");
         Assert.That(System.Text.Encoding.ASCII.GetString(bytes, 0, 5), Is.EqualTo("%PDF-"),
             "the response body must be a PDF");
+        // The report declares PDF/A-4; its figures embed their fonts only when the report's Cairo device
+        // setting takes effect and the image serves their fonts as CFF.
+        Assert.That(PdfFontEmbedding.FindProblems(bytes), Is.Empty,
+            "every font in the PDF must be embedded, and no CID-keyed TrueType font may lack its CIDToGIDMap");
     }
 
     [Test]

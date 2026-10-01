@@ -7,13 +7,15 @@
 #     digest is what BuildKit resolves). Refresh one with:
 #       docker buildx imagetools inspect <image>:<tag> --format '{{.Manifest.Digest}}'
 #     A digest pin freezes the base image, so .NET / OS-layer security patches
-#     arrive only on a deliberate digest bump — the `base` stage's `apt upgrade`
+#     arrive only on a deliberate digest bump — the `font-runtime` stage's `apt upgrade`
 #     still pulls resolute security updates for the apt-managed libraries.
 #   * Version ARGs hold the bare number (no leading `v`); the `v` is prepended at
 #     the URL where the upstream tag carries one (TinyTeX, Quarto).
 #   * The TinyTeX / Quarto / EB Garamond `ADD --checksum` values are version-coupled
 #     and stay inline at their ADD lines — bump the checksum together with the
-#     matching version ARG here.
+#     matching version ARG here. The Noto Sans fonts and their licence file have no
+#     checksum: NOTOSANS_COMMIT alone pins them, since a commit fixes the contents of
+#     every file it holds, so a bump changes only that ARG.
 #   * TINYTEX_TLNET_SNAPSHOT must track TINYTEX_VERSION: the archive day has to fall
 #     inside the window tlmgr accepts for the bundle — see the tinytex-builder stage.
 # ----------------------------------------------------------------------------
@@ -26,6 +28,10 @@ ARG QUARTO_VERSION=1.10.18
 # EB Garamond from the EBGaramond12 repository (github.com/octaviopardo/EBGaramond12, SIL OFL
 # 1.1), a commit of that repository: it has no releases.
 ARG EBGARAMOND_COMMIT=106a4a6d377987459ae5e68673a4570f13b957fb
+# Every Noto Sans family as static OTFs from the Noto project's font distribution
+# (github.com/notofonts/notofonts.github.io, SIL OFL 1.1), with the distribution's licence file: a
+# commit of it, since the distribution has no releases of its own.
+ARG NOTOSANS_COMMIT=1eb09fb315562c7e07d738691870e52c39b45b39
 # R (r-base-core) and the r-cran-* packages are deliberately NOT pinned in this inventory:
 # r2u is a rolling current-CRAN mirror with no dated snapshots and no old-version retention,
 # so a version pin can't be held — they track CRAN, and a deliberate validated rebuild is the
@@ -176,8 +182,8 @@ RUN set -eu; \
     find /toolkit-output -type d -name .quarto -prune -exec rm -rf {} +
 
 # ----------------------------------------------------------------------------
-# Stage: r-runtime — shared parent for r-builder-base and the final-image
-# base stage. Carries everything both paths need: R + the binary CRAN
+# Stage: r-runtime — shared parent for r-builder-base and the final image's
+# font-runtime and base stages. Carries everything both paths need: R + the binary CRAN
 # packages our reports import, pre-installed so the runtime image performs no
 # install.packages() at render time (and so needs neither a compiler nor an
 # apt bridge there).
@@ -416,11 +422,55 @@ ADD --chmod=644 --checksum=sha256:058611bd968817d532cedeab6acaa055e882d365a88523
     /ebgaramond/OFL.txt
 
 # ----------------------------------------------------------------------------
-# Stage: runtime base (R + locales + fonts + Quarto + TinyTeX + toolkit).
-# Inherits R + the binary CRAN packages from r-runtime; adds only what's
-# unique to the final image (fonts, locales, Quarto, TinyTeX, toolkit).
+# Stage: every Noto Sans family as static OTFs in the Compact Font Format (CFF) flavour (the faces the
+# figures of the Partner and Reference Reports set or fall back to, and the licence that goes with
+# them).
 # ----------------------------------------------------------------------------
-FROM r-runtime AS base
+# The reports draw their PDF figures with the Cairo device, which embeds a TrueType font's glyphs
+# outside WinAnsi as a CID-keyed TrueType font without the CIDToGIDMap entry PDF/A-4 requires (ISO
+# 32000-2, 9.7.4, Table 115), while it embeds a CFF-flavoured font as CFF, which the requirement
+# does not cover. fonts-noto-core ships the Noto families as TrueType only, so these OTFs replace
+# its Noto Sans families for fontconfig (see the font-runtime stage): Noto Sans in its four faces, and every
+# other Noto Sans family in its regular face and, where it has one, its bold face; they carry the
+# scripts and symbols Noto Sans lacks. The UI variants and the test font are left out. The stage
+# fetches the tree at the distribution's commit without file contents, selects those files by
+# pathspec, and downloads only their contents, about 17 MB; the commit pins them as a checksum pins
+# a download. Each font carries its copyright notice and SIL OFL licence description in its
+# metadata, and the distribution's licence file, which states the licence and the copyright of the
+# Noto project as a whole, ships beside them as OFL.txt, as EB Garamond's does.
+FROM ${ALPINE_GIT_IMAGE} AS notosans-downloader
+ARG NOTOSANS_COMMIT
+WORKDIR /distribution
+RUN <<'EOF'
+set -eu
+git init -q .
+git remote add origin https://github.com/notofonts/notofonts.github.io.git
+git fetch -q --depth 1 --filter=blob:none origin "$NOTOSANS_COMMIT"
+git read-tree FETCH_HEAD
+set -- \
+    ':(glob)fonts/NotoSans*/unhinted/otf/NotoSans*-Regular.otf' \
+    ':(glob)fonts/NotoSans*/unhinted/otf/NotoSans*-Bold.otf' \
+    'fonts/NotoSans/unhinted/otf/NotoSans-Italic.otf' \
+    'fonts/NotoSans/unhinted/otf/NotoSans-BoldItalic.otf' \
+    'fonts/LICENSE' \
+    ':(exclude,glob)fonts/NotoSansTest/**' \
+    ':(exclude,glob)fonts/*UI/**' \
+    ':(exclude,glob)fonts/*/unhinted/otf/*UI-*.otf'
+git fetch -q origin $(git ls-files -s -- "$@" | cut -d' ' -f2)
+git checkout-index -- $(git ls-files -- "$@")
+mkdir /notosans
+find fonts -name '*.otf' -exec cp {} /notosans/ \;
+cp fonts/LICENSE /notosans/OFL.txt
+chmod 644 /notosans/*
+EOF
+
+# ----------------------------------------------------------------------------
+# Stage: font-runtime (security updates + locales + fonts + their fontconfig rules).
+# Inherits R + the binary CRAN packages from r-runtime. It stands apart from base so that the
+# pull-request CI builds it, and with it the checks below that keep the figures' fonts CFF, without
+# the toolkit, neoipcr, Quarto, and TinyTeX that base adds and no pull-request job builds.
+# ----------------------------------------------------------------------------
+FROM r-runtime AS font-runtime
 ARG DEBIAN_FRONTEND=noninteractive
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
@@ -433,12 +483,109 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get -qq upgrade -y && \
     apt-get -qq install --no-install-recommends \
         fonts-noto-core \
-        fonts-noto-extra \
         locales && \
     locale-gen de_DE.UTF-8 el_GR.UTF-8 en_GB.UTF-8 es_ES.UTF-8 et_EE.UTF-8 it_IT.UTF-8 tr_TR.UTF-8  # keep in sync with LocaleResolver.DefaultTerritories — an ungenerated locale crashes lualatex/tlmgr
 
 COPY --from=ebgaramond-downloader /ebgaramond/ /usr/share/fonts/opentype/ebgaramond/
-RUN fc-cache -f /usr/share/fonts/opentype/ebgaramond
+COPY --from=notosans-downloader /notosans/ /usr/share/fonts/opentype/notosans/
+# Noto Sans falls back to Noto fonts in their CFF builds. fontconfig would otherwise choose between
+# the two builds of a family by its own order, and fall back from Noto Sans to DejaVu Sans, also
+# TrueType. So it leaves out every TrueType Noto Sans family, and DejaVu, which fontconfig's own
+# packages bring and nothing here sets, each named by family and font format. A rule naming their
+# files would not hold: fontconfig strips the working directory from the front of a path glob, so
+# the glob stops matching for a process run from a parent directory of the fonts, the root among
+# them. Noto Sans falls back first to Noto Sans Math, Noto Sans Symbols, and Noto Sans Symbols 2,
+# bound as strongly as the family a figure names, so that ≥ always comes from Math; then to every
+# other Noto Sans family, bound weakly and placed ahead of the families the distribution's own rules
+# add for sans-serif. Each alias inserts its families directly after Noto Sans, so the strongly
+# bound one comes last in the file to come first in the list. fontconfig ranks a font that supports
+# the requested language between the two bindings, and Pango requests each run of text in its own
+# language, derived from the run's script when the render's locale does not cover it, so a script is
+# drawn from its own family: Nepali's danda from Noto Sans Devanagari, although Noto Sans Bengali has
+# one too. Math's Arabic letters would outrank Noto Sans Arabic, so they leave its character set.
+# Under C.UTF-8, which names no language, the order of the weak families decides instead. EB
+# Garamond, also CFF, supplies the few characters no installed Noto font carries. Both lists are
+# generated from the installed fonts, so they follow NOTOSANS_COMMIT and the distribution's packages,
+# and the build, which runs from the root, fails if a Noto Sans family is still reachable in another
+# build or ≥ comes from another font.
+# Not covered: the scripts that only other Noto families carry (Noto Serif Tibetan, Ahom, Tangut,
+# Dogra, Yezidi, and Nyiakeng Puachue Hmong; Noto Music; Noto Traditional Nushu; Noto Looped Thai)
+# still come from fonts-noto-core's TrueType builds and would break PDF/A-4, and Chinese, Japanese,
+# and Korean have no font, so a figure draws them as boxes. A language whose script needs one of
+# these families adds the family's OTF to the fetch above when the language is added. The generic
+# monospace and serif families resolve to the TrueType Noto Mono and Noto Serif, which no figure
+# sets.
+RUN <<'EOF'
+set -eu
+fonts=/usr/share/fonts/opentype/notosans
+families=$(fc-scan --format '%{family[0]}\n' "$fonts" | LC_ALL=C sort -u)
+rejected=$(fc-scan --format '%{family[0]}\n' /usr/share/fonts/truetype/noto /usr/share/fonts/truetype/dejavu \
+    | grep -E '^(Noto Sans|DejaVu )' | LC_ALL=C sort -u)
+case "$families$rejected" in
+    *'<'* | *'&'*) echo "a font family name would break the generated XML" >&2; exit 1 ;;
+esac
+{
+    cat <<'XML'
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
+<fontconfig>
+  <selectfont>
+    <rejectfont>
+XML
+    printf '%s\n' "$rejected" \
+        | sed 's|.*|      <pattern><patelt name="family"><string>&</string></patelt><patelt name="fontformat"><string>TrueType</string></patelt></pattern>|'
+    cat <<'XML'
+    </rejectfont>
+  </selectfont>
+  <match target="scan">
+    <test name="family"><string>Noto Sans Math</string></test>
+    <edit name="charset" mode="assign">
+      <minus>
+        <name>charset</name>
+        <charset><range><int>0x0600</int><int>0x06FF</int></range></charset>
+      </minus>
+    </edit>
+  </match>
+  <alias>
+    <family>Noto Sans</family>
+    <accept>
+XML
+    printf '%s\n' "$families" \
+        | grep -vxF -e 'Noto Sans' -e 'Noto Sans Math' -e 'Noto Sans Symbols' -e 'Noto Sans Symbols 2' \
+        | sed 's|.*|      <family>&</family>|'
+    cat <<'XML'
+    </accept>
+  </alias>
+  <alias binding="same">
+    <family>Noto Sans</family>
+    <accept>
+      <family>Noto Sans Math</family>
+      <family>Noto Sans Symbols</family>
+      <family>Noto Sans Symbols 2</family>
+    </accept>
+  </alias>
+</fontconfig>
+XML
+} > /etc/fonts/conf.d/70-neoipc-noto-sans-otf.conf
+fc-cache -f /usr/share/fonts/opentype/ebgaramond "$fonts"
+if fc-list -f '%{family[0]}|%{file}\n' | grep '^Noto Sans' | grep -v "|$fonts/"; then
+    echo "a Noto Sans family is reachable outside $fonts" >&2; exit 1
+fi
+if fc-list -f '%{family[0]}\n' | grep '^DejaVu'; then
+    echo "DejaVu is reachable" >&2; exit 1
+fi
+if [ "$(fc-match -f '%{file}' 'Noto Sans:lang=en:charset=2265')" != "$fonts/NotoSansMath-Regular.otf" ]; then
+    echo "≥ no longer comes from Noto Sans Math" >&2; exit 1
+fi
+EOF
+
+# ----------------------------------------------------------------------------
+# Stage: runtime base (Quarto + TinyTeX + toolkit + neoipcr).
+# Inherits R, the locales, and the fonts from font-runtime; adds only what's
+# unique to the final image.
+# ----------------------------------------------------------------------------
+FROM font-runtime AS base
+ARG DEBIAN_FRONTEND=noninteractive
 
 # Attack-surface reduction: drop build-/desktop-only packages that have no role
 # at render time, so they neither ship in nor get scanned against the image.

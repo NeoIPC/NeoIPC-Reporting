@@ -66,6 +66,22 @@ product's own changelog, and here only as the pin that carries it.
   a commit and shipped with their SIL OFL licence, in place of Debian's `fonts-ebgaramond`, the
   unfinished original release whose bold face lacks the subscript digits, ≥, and −: the bold Q₁, Q₂,
   and Q₃ headers of the Partner and Reference Reports' tables rendered as boxes.
+- The image installs every Noto Sans family as the Noto project's static OTFs in the Compact Font
+  Format (CFF) flavour, Noto Sans in its four faces and the others in their regular face and, where
+  they have one, their bold face, pinned to a commit and shipped with their SIL OFL licence. The Partner
+  and Reference Reports draw their PDF figures with the Cairo device in Noto Sans, and Cairo embeds a
+  TrueType font's glyphs outside WinAnsi as a CID-keyed font without the `CIDToGIDMap` entry PDF/A-4
+  requires, while it embeds a CFF font as CFF. So fontconfig now serves these OTFs in place of the
+  TrueType faces of `fonts-noto-core`, no longer offers DejaVu, and falls back from Noto Sans to Noto
+  Sans Math and the two Symbols families, then to each script's own Noto Sans family, and to EB Garamond
+  only for the few characters no Noto font carries; the image build fails if that stops holding. A
+  figure in Nepali, Hebrew, Arabic, or any other script a Noto Sans family carries therefore conforms,
+  with ≥ from Noto Sans Math. LuaLaTeX also prefers the OTFs, so the Validation Report's body text is now
+  set in their newer Noto Sans build. A figure in a script that only other Noto families carry, such as
+  Tibetan, still embeds a TrueType font, and Chinese, Japanese, and Korean have no font, so a figure
+  draws them as boxes; such a script's font is added together with the language that needs it.
+- The image no longer installs `fonts-noto-extra`, about 325 MiB of Noto weights, widths, and families
+  that no report sets.
 - A render copies its report's own directory into its private workdir instead of linking each file
   back to the report sources, so an HTML render can show an image kept in that directory: Quarto
   copies the images a document shows into its output and sets their timestamps, which it cannot do
