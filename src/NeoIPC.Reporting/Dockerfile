@@ -491,21 +491,24 @@ COPY --from=ebgaramond-downloader /ebgaramond/ /usr/share/fonts/opentype/ebgaram
 COPY --from=notosans-downloader /notosans/ /usr/share/fonts/opentype/notosans/
 # Noto Sans falls back to Noto fonts in their CFF builds. fontconfig would otherwise choose between
 # the two builds of a family by its own order, and fall back from Noto Sans to DejaVu Sans, also
-# TrueType. So it leaves out the TrueType faces of every Noto Sans family, and DejaVu, which
-# fontconfig's own packages bring and nothing here sets. Noto Sans falls back first to Noto Sans
-# Math, Noto Sans Symbols, and Noto Sans Symbols 2, bound as strongly as the family a figure names,
-# so that ≥ always comes from Math; then to every other Noto Sans family, bound weakly and placed
-# ahead of the families the distribution's own rules add for sans-serif. Each alias inserts its
-# families directly after Noto Sans, so the strongly bound one comes last in the file to come first
-# in the list. fontconfig ranks a font
-# that supports the requested language between the two bindings, and Pango requests each run of text
-# in its own language, derived from the run's script when the render's locale does not cover it, so
-# a script is drawn from its own family: Nepali's danda from Noto Sans Devanagari, although Noto Sans
-# Bengali has one too. Math's Arabic letters would outrank Noto Sans Arabic, so they leave its
-# character set. Under C.UTF-8, which names no language, the order of the weak families decides
-# instead. EB Garamond, also CFF, supplies the few characters no installed Noto font carries. The
-# list is generated from the fetched fonts, so it follows NOTOSANS_COMMIT, and the build fails if a
-# Noto Sans family is still reachable in another build or ≥ comes from another font.
+# TrueType. So it leaves out every TrueType Noto Sans family, and DejaVu, which fontconfig's own
+# packages bring and nothing here sets, each named by family and font format. A rule naming their
+# files would not hold: fontconfig strips the working directory from the front of a path glob, so
+# the glob stops matching for a process run from a parent directory of the fonts, the root among
+# them. Noto Sans falls back first to Noto Sans Math, Noto Sans Symbols, and Noto Sans Symbols 2,
+# bound as strongly as the family a figure names, so that ≥ always comes from Math; then to every
+# other Noto Sans family, bound weakly and placed ahead of the families the distribution's own rules
+# add for sans-serif. Each alias inserts its families directly after Noto Sans, so the strongly
+# bound one comes last in the file to come first in the list. fontconfig ranks a font that supports
+# the requested language between the two bindings, and Pango requests each run of text in its own
+# language, derived from the run's script when the render's locale does not cover it, so a script is
+# drawn from its own family: Nepali's danda from Noto Sans Devanagari, although Noto Sans Bengali has
+# one too. Math's Arabic letters would outrank Noto Sans Arabic, so they leave its character set.
+# Under C.UTF-8, which names no language, the order of the weak families decides instead. EB
+# Garamond, also CFF, supplies the few characters no installed Noto font carries. Both lists are
+# generated from the installed fonts, so they follow NOTOSANS_COMMIT and the distribution's packages,
+# and the build, which runs from the root, fails if a Noto Sans family is still reachable in another
+# build or ≥ comes from another font.
 # Not covered: the scripts that only other Noto families carry (Noto Serif Tibetan, Ahom, Tangut,
 # Dogra, Yezidi, and Nyiakeng Puachue Hmong; Noto Music; Noto Traditional Nushu; Noto Looped Thai)
 # still come from fonts-noto-core's TrueType builds and would break PDF/A-4, and Chinese, Japanese,
@@ -517,8 +520,10 @@ RUN <<'EOF'
 set -eu
 fonts=/usr/share/fonts/opentype/notosans
 families=$(fc-scan --format '%{family[0]}\n' "$fonts" | LC_ALL=C sort -u)
-case "$families" in
-    *'<'* | *'&'*) echo "a Noto family name would break the generated XML" >&2; exit 1 ;;
+rejected=$(fc-scan --format '%{family[0]}\n' /usr/share/fonts/truetype/noto /usr/share/fonts/truetype/dejavu \
+    | grep -E '^(Noto Sans|DejaVu )' | LC_ALL=C sort -u)
+case "$families$rejected" in
+    *'<'* | *'&'*) echo "a font family name would break the generated XML" >&2; exit 1 ;;
 esac
 {
     cat <<'XML'
@@ -527,8 +532,10 @@ esac
 <fontconfig>
   <selectfont>
     <rejectfont>
-      <glob>/usr/share/fonts/truetype/noto/NotoSans*</glob>
-      <glob>/usr/share/fonts/truetype/dejavu/*</glob>
+XML
+    printf '%s\n' "$rejected" \
+        | sed 's|.*|      <pattern><patelt name="family"><string>&</string></patelt><patelt name="fontformat"><string>TrueType</string></patelt></pattern>|'
+    cat <<'XML'
     </rejectfont>
   </selectfont>
   <match target="scan">
@@ -564,6 +571,9 @@ XML
 fc-cache -f /usr/share/fonts/opentype/ebgaramond "$fonts"
 if fc-list -f '%{family[0]}|%{file}\n' | grep '^Noto Sans' | grep -v "|$fonts/"; then
     echo "a Noto Sans family is reachable outside $fonts" >&2; exit 1
+fi
+if fc-list -f '%{family[0]}\n' | grep '^DejaVu'; then
+    echo "DejaVu is reachable" >&2; exit 1
 fi
 if [ "$(fc-match -f '%{file}' 'Noto Sans:lang=en:charset=2265')" != "$fonts/NotoSansMath-Regular.otf" ]; then
     echo "≥ no longer comes from Noto Sans Math" >&2; exit 1

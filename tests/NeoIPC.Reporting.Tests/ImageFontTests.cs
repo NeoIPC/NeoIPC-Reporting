@@ -26,7 +26,11 @@ namespace NeoIPC.Reporting.Tests;
 /// TrueType Noto Sans family of <c>fonts-noto-core</c> again. The language in
 /// a script query stands for the one Pango requests for a run of that script:
 /// the locale's own language when it covers the script, otherwise the script's
-/// sample language, such as <c>hi</c> for Devanagari.
+/// sample language, such as <c>hi</c> for Devanagari. A rule that names font
+/// files by path glob stops matching for a process run from a parent
+/// directory of the fonts, the root among them, so the tests that read which
+/// fonts a process sees run from the root as well as from the service's own
+/// directory.
 /// Runs the image <see cref="SmokeTestImage"/> resolves, as
 /// <see cref="ParametersEndpointTests"/> does.
 /// </remarks>
@@ -109,9 +113,11 @@ public class ImageFontTests
     }
 
     [Test]
-    public async Task NotoSans_EveryFamilyIsOfferedOnlyAsAnOtf()
+    public async Task NotoSans_EveryFamilyIsOfferedOnlyAsAnOtf(
+        [Values("/", "/usr/share/fonts", "/app")] string workingDirectory)
     {
-        var result = await _container!.ExecAsync(["fc-list", "-f", "%{family[0]}|%{file}\n"]);
+        var result = await _container!.ExecAsync(
+            ["env", "-C", workingDirectory, "fc-list", "-f", "%{family[0]}|%{file}\n"]);
 
         Assert.That(result.ExitCode, Is.EqualTo(0), result.Stderr);
         var files = result.Stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries)
@@ -123,13 +129,15 @@ public class ImageFontTests
     }
 
     [Test]
-    public async Task NotoSans_FallsBackOnlyToNotoFontsAndEbGaramond()
+    public async Task NotoSans_FallsBackOnlyToNotoFontsAndEbGaramond(
+        [Values("/", "/app")] string workingDirectory)
     {
         // fontconfig's fallback list for Noto Sans, trimmed as a renderer sees
         // it: a font that adds no character to the fonts before it is left out.
         // EB Garamond, the reports' own font and also CFF, supplies the few
         // characters no installed Noto font carries.
-        var result = await _container!.ExecAsync(["fc-match", "-s", "-f", "%{family}\n", "Noto Sans"]);
+        var result = await _container!.ExecAsync(
+            ["env", "-C", workingDirectory, "fc-match", "-s", "-f", "%{family}\n", "Noto Sans"]);
 
         Assert.That(result.ExitCode, Is.EqualTo(0), result.Stderr);
         var families = result.Stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries);
@@ -190,7 +198,8 @@ public class ImageFontTests
     }
 
     [Test]
-    public async Task NotoSans_AFigureTheCairoDeviceDrawsEmbedsNoTrueTypeCidFont()
+    public async Task NotoSans_AFigureTheCairoDeviceDrawsEmbedsNoTrueTypeCidFont(
+        [Values("/", "/app")] string workingDirectory)
     {
         // A bold title and regular axis labels with a minus sign, Greek letters,
         // and ≥, which lie outside WinAnsi and so reach Cairo's CID fonts, and
@@ -207,7 +216,8 @@ public class ImageFontTests
             cat(count("/CIDFontType2"), count("/FontFile2"), count("/CIDFontType0"))
             """;
 
-        var result = await _container!.ExecAsync(["env", "LC_ALL=en_GB.UTF-8", "Rscript", "-e", script]);
+        var result = await _container!.ExecAsync(
+            ["env", "-C", workingDirectory, "LC_ALL=en_GB.UTF-8", "Rscript", "-e", script]);
 
         Assert.That(result.ExitCode, Is.EqualTo(0), result.Stderr);
         var counts = result.Stdout.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToArray();
