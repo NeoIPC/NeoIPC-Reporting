@@ -7,13 +7,15 @@
 #     digest is what BuildKit resolves). Refresh one with:
 #       docker buildx imagetools inspect <image>:<tag> --format '{{.Manifest.Digest}}'
 #     A digest pin freezes the base image, so .NET / OS-layer security patches
-#     arrive only on a deliberate digest bump — the `base` stage's `apt upgrade`
+#     arrive only on a deliberate digest bump — the `font-runtime` stage's `apt upgrade`
 #     still pulls resolute security updates for the apt-managed libraries.
 #   * Version ARGs hold the bare number (no leading `v`); the `v` is prepended at
 #     the URL where the upstream tag carries one (TinyTeX, Quarto).
-#   * The TinyTeX / Quarto / EB Garamond / Noto licence `ADD --checksum` values are version-coupled
+#   * The TinyTeX / Quarto / EB Garamond `ADD --checksum` values are version-coupled
 #     and stay inline at their ADD lines — bump the checksum together with the
-#     matching version ARG here. The Noto Sans fonts are pinned by their commit alone.
+#     matching version ARG here. The Noto Sans fonts and their licence file have no
+#     checksum: NOTOSANS_COMMIT alone pins them, since a commit fixes the contents of
+#     every file it holds, so a bump changes only that ARG.
 #   * TINYTEX_TLNET_SNAPSHOT must track TINYTEX_VERSION: the archive day has to fall
 #     inside the window tlmgr accepts for the bundle — see the tinytex-builder stage.
 # ----------------------------------------------------------------------------
