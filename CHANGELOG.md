@@ -15,6 +15,16 @@ product's own changelog, and here only as the pin that carries it.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-01
+
+- The image bakes the reports at `reports-v0.2.0-alpha` and neoipcr at `v0.0.0.9007`, in place of
+  `reports-v0.1.0-alpha` and `v0.0.0.9001`. What those carry is in their own changelogs. They bring
+  the report parameters this release passes on, the Validation Report's `rules` and
+  `dhis2PublicBaseUrl` and the Partner and Reference Reports' `includeValidationSummaryTable`, and
+  the Partner and Reference Reports' figures in Noto Sans, which the fonts below make conform to
+  PDF/A-4. neoipcr's reconciliation of stored values and its new validation rules can change those
+  reports' rates and counts, as the reports' changelog sets out.
+
 ### Added
 
 - `GET /validation-report` renders the Validation Report, which lists every record a NeoIPC
@@ -190,6 +200,7 @@ product's own changelog, and here only as the pin that carries it.
   case-sensitively as an enum whose names are capitalized; it now accepts the lowercase tokens the
   app sends.
 
-[Unreleased]: https://github.com/NeoIPC/NeoIPC-Reporting/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/NeoIPC/NeoIPC-Reporting/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/NeoIPC/NeoIPC-Reporting/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/NeoIPC/NeoIPC-Reporting/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/NeoIPC/NeoIPC-Reporting/compare/v0.1.4...v0.2.0
