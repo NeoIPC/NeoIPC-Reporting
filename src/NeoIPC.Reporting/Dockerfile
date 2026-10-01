@@ -182,8 +182,8 @@ RUN set -eu; \
     find /toolkit-output -type d -name .quarto -prune -exec rm -rf {} +
 
 # ----------------------------------------------------------------------------
-# Stage: r-runtime — shared parent for r-builder-base and the final-image
-# base stage. Carries everything both paths need: R + the binary CRAN
+# Stage: r-runtime — shared parent for r-builder-base and the final image's
+# font-runtime and base stages. Carries everything both paths need: R + the binary CRAN
 # packages our reports import, pre-installed so the runtime image performs no
 # install.packages() at render time (and so needs neither a compiler nor an
 # apt bridge there).
@@ -430,7 +430,7 @@ ADD --chmod=644 --checksum=sha256:058611bd968817d532cedeab6acaa055e882d365a88523
 # outside WinAnsi as a CID-keyed TrueType font without the CIDToGIDMap entry PDF/A-4 requires (ISO
 # 32000-2, 9.7.4, Table 115), while it embeds a CFF-flavoured font as CFF, which the requirement
 # does not cover. fonts-noto-core ships the Noto families as TrueType only, so these OTFs replace
-# its Noto Sans families for fontconfig (see the base stage): Noto Sans in its four faces, and every
+# its Noto Sans families for fontconfig (see the font-runtime stage): Noto Sans in its four faces, and every
 # other Noto Sans family in its regular face and, where it has one, its bold face; they carry the
 # scripts and symbols Noto Sans lacks. The UI variants and the test font are left out. The stage
 # fetches the tree at the distribution's commit without file contents, selects those files by
@@ -467,11 +467,12 @@ ADD --chmod=644 --checksum=sha256:cee9892f9f0cc8fe882c9e9537ee6a89621d86ee7ceaf7
     /notosans/OFL.txt
 
 # ----------------------------------------------------------------------------
-# Stage: runtime base (R + locales + fonts + Quarto + TinyTeX + toolkit).
-# Inherits R + the binary CRAN packages from r-runtime; adds only what's
-# unique to the final image (fonts, locales, Quarto, TinyTeX, toolkit).
+# Stage: font-runtime (security updates + locales + fonts + their fontconfig rules).
+# Inherits R + the binary CRAN packages from r-runtime. It stands apart from base so that the
+# pull-request CI builds it, and with it the checks below that keep the figures' fonts CFF, without
+# the toolkit, neoipcr, Quarto, and TinyTeX that base adds and no pull-request job builds.
 # ----------------------------------------------------------------------------
-FROM r-runtime AS base
+FROM r-runtime AS font-runtime
 ARG DEBIAN_FRONTEND=noninteractive
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
@@ -579,6 +580,14 @@ if [ "$(fc-match -f '%{file}' 'Noto Sans:lang=en:charset=2265')" != "$fonts/Noto
     echo "≥ no longer comes from Noto Sans Math" >&2; exit 1
 fi
 EOF
+
+# ----------------------------------------------------------------------------
+# Stage: runtime base (Quarto + TinyTeX + toolkit + neoipcr).
+# Inherits R, the locales, and the fonts from font-runtime; adds only what's
+# unique to the final image.
+# ----------------------------------------------------------------------------
+FROM font-runtime AS base
+ARG DEBIAN_FRONTEND=noninteractive
 
 # Attack-surface reduction: drop build-/desktop-only packages that have no role
 # at render time, so they neither ship in nor get scanned against the image.

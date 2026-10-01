@@ -18,6 +18,7 @@ namespace NeoIPC.Reporting.Tests;
 /// font dictionary exists only inside an object stream.
 /// </remarks>
 [TestFixture]
+[Category("Unit")]
 public class PdfFontEmbeddingTests
 {
     static byte[] Fixture(string name) =>

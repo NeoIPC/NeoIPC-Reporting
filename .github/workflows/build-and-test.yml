@@ -173,11 +173,14 @@ jobs:
     # --target ebgaramond-downloader, and --target notosans-downloader carry
     # the download pins (ADD --checksum, and for Noto Sans a commit), and are
     # where a bump fails when a checksum, a commit, or for TinyTeX its
-    # snapshot, is wrong. Those four reach the
-    # image only through the stage it is
-    # assembled from, and no pull-request job assembles it — that is the
+    # snapshot, is wrong. Those four reach the image only through the stage it
+    # is assembled from, and no pull-request job assembles it — that is the
     # dispatch-only container job and the release workflow — so without these
-    # steps a bad pin first surfaces on a tag.
+    # steps a bad pin first surfaces on a tag. For the same reason
+    # --target font-runtime builds the fonts with the fontconfig rules that
+    # keep the figures' fonts CFF, whose checks fail the build where a Noto Sans
+    # family is reachable in another build, DejaVu is reachable, or ≥ comes
+    # from a font other than Noto Sans Math.
     name: Dockerfile sanity build
     runs-on: ubuntu-latest
     steps:
@@ -224,6 +227,13 @@ jobs:
           -f src/NeoIPC.Reporting/Dockerfile
           --target notosans-downloader
           -t neoipc-reporting:notosans-downloader
+          .
+      - name: Build font-runtime stage
+        run: >
+          docker build
+          -f src/NeoIPC.Reporting/Dockerfile
+          --target font-runtime
+          -t neoipc-reporting:font-runtime
           .
 
   container:
