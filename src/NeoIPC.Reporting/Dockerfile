@@ -11,7 +11,7 @@
 #     still pulls resolute security updates for the apt-managed libraries.
 #   * Version ARGs hold the bare number (no leading `v`); the `v` is prepended at
 #     the URL where the upstream tag carries one (TinyTeX, Quarto).
-#   * The TinyTeX / Quarto / EB Garamond `ADD --checksum` values are version-coupled
+#   * The TinyTeX / Quarto / EB Garamond / Noto Sans `ADD --checksum` values are version-coupled
 #     and stay inline at their ADD lines — bump the checksum together with the
 #     matching version ARG here.
 #   * TINYTEX_TLNET_SNAPSHOT must track TINYTEX_VERSION: the archive day has to fall
@@ -26,6 +26,11 @@ ARG QUARTO_VERSION=1.10.18
 # EB Garamond from the EBGaramond12 repository (github.com/octaviopardo/EBGaramond12, SIL OFL
 # 1.1), a commit of that repository: it has no releases.
 ARG EBGARAMOND_COMMIT=106a4a6d377987459ae5e68673a4570f13b957fb
+# Noto Sans as static OTFs from the Noto project's font distribution (github.com/notofonts/
+# notofonts.github.io), and the SIL OFL 1.1 text from its source repository (github.com/notofonts/
+# latin-greek-cyrillic): commits of both, since the distribution has no releases of its own.
+ARG NOTOSANS_COMMIT=1eb09fb315562c7e07d738691870e52c39b45b39
+ARG NOTOSANS_LICENCE_COMMIT=023d7b73d5c1a5ed6489bd04a120244c1f2bff3f
 # R (r-base-core) and the r-cran-* packages are deliberately NOT pinned in this inventory:
 # r2u is a rolling current-CRAN mirror with no dated snapshots and no old-version retention,
 # so a version pin can't be held — they track CRAN, and a deliberate validated rebuild is the
@@ -416,6 +421,35 @@ ADD --chmod=644 --checksum=sha256:058611bd968817d532cedeab6acaa055e882d365a88523
     /ebgaramond/OFL.txt
 
 # ----------------------------------------------------------------------------
+# Stage: Noto Sans as CFF-flavoured static OTFs (the four faces the figures of the Partner and
+# Reference Reports set, and the licence that goes with them).
+# ----------------------------------------------------------------------------
+# The reports draw their PDF figures with the Cairo device, which embeds a TrueType font's glyphs
+# outside WinAnsi as a CID TrueType font without the CIDToGIDMap entry PDF/A-4 requires (ISO
+# 32000-2, 9.7.4, Table 115), while it embeds a CFF-flavoured font as CFF, which the requirement
+# does not cover. fonts-noto-core ships Noto Sans as TrueType only, so these OTFs replace its
+# four faces for fontconfig (see the base stage). The SIL OFL text ships beside them, as for EB
+# Garamond.
+FROM scratch AS notosans-downloader
+ARG NOTOSANS_COMMIT
+ARG NOTOSANS_LICENCE_COMMIT
+ADD --chmod=644 --checksum=sha256:bfb44de2c2031c391ff856943fe8f105ebb5d725cb9a04d493d211d5bbd5c21b \
+    https://raw.githubusercontent.com/notofonts/notofonts.github.io/${NOTOSANS_COMMIT}/fonts/NotoSans/unhinted/otf/NotoSans-Regular.otf \
+    /notosans/NotoSans-Regular.otf
+ADD --chmod=644 --checksum=sha256:6965f5587daefec19f7f989cb83b66c7e04e17311d759b701a0e2c5efa353661 \
+    https://raw.githubusercontent.com/notofonts/notofonts.github.io/${NOTOSANS_COMMIT}/fonts/NotoSans/unhinted/otf/NotoSans-Italic.otf \
+    /notosans/NotoSans-Italic.otf
+ADD --chmod=644 --checksum=sha256:ad862ec2c77ce672bd9013dc756d058e77b8b49f0a70f6c3be5148017c99c5ed \
+    https://raw.githubusercontent.com/notofonts/notofonts.github.io/${NOTOSANS_COMMIT}/fonts/NotoSans/unhinted/otf/NotoSans-Bold.otf \
+    /notosans/NotoSans-Bold.otf
+ADD --chmod=644 --checksum=sha256:858515544374e4ac6ddc8fe80aa7dcf6cce9d0ca3c7c45fd3ac9e250a9d815d4 \
+    https://raw.githubusercontent.com/notofonts/notofonts.github.io/${NOTOSANS_COMMIT}/fonts/NotoSans/unhinted/otf/NotoSans-BoldItalic.otf \
+    /notosans/NotoSans-BoldItalic.otf
+ADD --chmod=644 --checksum=sha256:cee9892f9f0cc8fe882c9e9537ee6a89621d86ee7ceaf70b02e2b2b1c25c061a \
+    https://raw.githubusercontent.com/notofonts/latin-greek-cyrillic/${NOTOSANS_LICENCE_COMMIT}/OFL.txt \
+    /notosans/OFL.txt
+
+# ----------------------------------------------------------------------------
 # Stage: runtime base (R + locales + fonts + Quarto + TinyTeX + toolkit).
 # Inherits R + the binary CRAN packages from r-runtime; adds only what's
 # unique to the final image (fonts, locales, Quarto, TinyTeX, toolkit).
@@ -438,7 +472,24 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     locale-gen de_DE.UTF-8 el_GR.UTF-8 en_GB.UTF-8 es_ES.UTF-8 et_EE.UTF-8 it_IT.UTF-8 tr_TR.UTF-8  # keep in sync with LocaleResolver.DefaultTerritories — an ungenerated locale crashes lualatex/tlmgr
 
 COPY --from=ebgaramond-downloader /ebgaramond/ /usr/share/fonts/opentype/ebgaramond/
-RUN fc-cache -f /usr/share/fonts/opentype/ebgaramond
+COPY --from=notosans-downloader /notosans/ /usr/share/fonts/opentype/notosans/
+# fontconfig would otherwise choose between the two Noto Sans builds by its own order, so it is
+# told to leave out the four TrueType faces the OTFs replace; every other Noto font is kept.
+COPY <<'EOF' /etc/fonts/conf.d/70-neoipc-noto-sans-otf.conf
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
+<fontconfig>
+  <selectfont>
+    <rejectfont>
+      <glob>/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf</glob>
+      <glob>/usr/share/fonts/truetype/noto/NotoSans-Italic.ttf</glob>
+      <glob>/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf</glob>
+      <glob>/usr/share/fonts/truetype/noto/NotoSans-BoldItalic.ttf</glob>
+    </rejectfont>
+  </selectfont>
+</fontconfig>
+EOF
+RUN fc-cache -f /usr/share/fonts/opentype/ebgaramond /usr/share/fonts/opentype/notosans
 
 # Attack-surface reduction: drop build-/desktop-only packages that have no role
 # at render time, so they neither ship in nor get scanned against the image.

@@ -169,10 +169,11 @@ jobs:
     # integration suite. --target r-runtime exercises the shared parent
     # stage the r-runtime refactor introduced; --target build exercises
     # the .NET build stage and everything it transitively pulls in;
-    # --target tinytex-builder, --target quarto-downloader, and
-    # --target ebgaramond-downloader carry the download pins (ADD --checksum),
-    # and are where a bump fails when a checksum, or for TinyTeX its snapshot,
-    # is wrong. Those three reach the image only through the stage it is
+    # --target tinytex-builder, --target quarto-downloader,
+    # --target ebgaramond-downloader, and --target notosans-downloader carry
+    # the download pins (ADD --checksum), and are where a bump fails when a
+    # checksum, or for TinyTeX its snapshot, is wrong. Those four reach the
+    # image only through the stage it is
     # assembled from, and no pull-request job assembles it — that is the
     # dispatch-only container job and the release workflow — so without these
     # steps a bad pin first surfaces on a tag.
@@ -215,6 +216,13 @@ jobs:
           -f src/NeoIPC.Reporting/Dockerfile
           --target ebgaramond-downloader
           -t neoipc-reporting:ebgaramond-downloader
+          .
+      - name: Build notosans-downloader stage
+        run: >
+          docker build
+          -f src/NeoIPC.Reporting/Dockerfile
+          --target notosans-downloader
+          -t neoipc-reporting:notosans-downloader
           .
 
   container:

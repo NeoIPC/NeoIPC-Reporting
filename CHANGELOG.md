@@ -66,6 +66,11 @@ product's own changelog, and here only as the pin that carries it.
   a commit and shipped with their SIL OFL licence, in place of Debian's `fonts-ebgaramond`, the
   unfinished original release whose bold face lacks the subscript digits, ≥, and −: the bold Q₁, Q₂,
   and Q₃ headers of the Partner and Reference Reports' tables rendered as boxes.
+- The image installs Noto Sans as the four static, CFF-flavoured OTFs of the Noto project, pinned to a
+  commit and shipped with their SIL OFL licence, and fontconfig serves them in place of the TrueType
+  faces of `fonts-noto-core`. The Partner and Reference Reports draw their PDF figures with the Cairo
+  device in Noto Sans, and Cairo embeds a TrueType font's glyphs outside WinAnsi as a CID font without
+  the `CIDToGIDMap` entry PDF/A-4 requires, while it embeds a CFF font as CFF.
 - A render copies its report's own directory into its private workdir instead of linking each file
   back to the report sources, so an HTML render can show an image kept in that directory: Quarto
   copies the images a document shows into its output and sets their timestamps, which it cannot do
