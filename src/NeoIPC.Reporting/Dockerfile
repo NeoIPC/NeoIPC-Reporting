@@ -27,11 +27,9 @@ ARG QUARTO_VERSION=1.10.18
 # 1.1), a commit of that repository: it has no releases.
 ARG EBGARAMOND_COMMIT=106a4a6d377987459ae5e68673a4570f13b957fb
 # Every Noto Sans family as static OTFs from the Noto project's font distribution
-# (github.com/notofonts/notofonts.github.io), and the SIL OFL 1.1 text from the Noto Sans source
-# repository (github.com/notofonts/latin-greek-cyrillic): commits of each, since the distribution
-# has no releases of its own.
+# (github.com/notofonts/notofonts.github.io, SIL OFL 1.1), with the distribution's licence file: a
+# commit of it, since the distribution has no releases of its own.
 ARG NOTOSANS_COMMIT=1eb09fb315562c7e07d738691870e52c39b45b39
-ARG NOTOSANS_LICENCE_COMMIT=023d7b73d5c1a5ed6489bd04a120244c1f2bff3f
 # R (r-base-core) and the r-cran-* packages are deliberately NOT pinned in this inventory:
 # r2u is a rolling current-CRAN mirror with no dated snapshots and no old-version retention,
 # so a version pin can't be held — they track CRAN, and a deliberate validated rebuild is the
@@ -436,11 +434,10 @@ ADD --chmod=644 --checksum=sha256:058611bd968817d532cedeab6acaa055e882d365a88523
 # fetches the tree at the distribution's commit without file contents, selects those files by
 # pathspec, and downloads only their contents, about 17 MB; the commit pins them as a checksum pins
 # a download. Each font carries its copyright notice and SIL OFL licence description in its
-# metadata, and the licence text, the same for every Noto family, ships beside them, as for EB
-# Garamond.
+# metadata, and the distribution's licence file, which states the licence and the copyright of the
+# Noto project as a whole, ships beside them as OFL.txt, as EB Garamond's does.
 FROM ${ALPINE_GIT_IMAGE} AS notosans-downloader
 ARG NOTOSANS_COMMIT
-ARG NOTOSANS_LICENCE_COMMIT
 WORKDIR /distribution
 RUN <<'EOF'
 set -eu
@@ -453,6 +450,7 @@ set -- \
     ':(glob)fonts/NotoSans*/unhinted/otf/NotoSans*-Bold.otf' \
     'fonts/NotoSans/unhinted/otf/NotoSans-Italic.otf' \
     'fonts/NotoSans/unhinted/otf/NotoSans-BoldItalic.otf' \
+    'fonts/LICENSE' \
     ':(exclude,glob)fonts/NotoSansTest/**' \
     ':(exclude,glob)fonts/*UI/**' \
     ':(exclude,glob)fonts/*/unhinted/otf/*UI-*.otf'
@@ -460,11 +458,9 @@ git fetch -q origin $(git ls-files -s -- "$@" | cut -d' ' -f2)
 git checkout-index -- $(git ls-files -- "$@")
 mkdir /notosans
 find fonts -name '*.otf' -exec cp {} /notosans/ \;
-chmod 644 /notosans/*.otf
+cp fonts/LICENSE /notosans/OFL.txt
+chmod 644 /notosans/*
 EOF
-ADD --chmod=644 --checksum=sha256:cee9892f9f0cc8fe882c9e9537ee6a89621d86ee7ceaf70b02e2b2b1c25c061a \
-    https://raw.githubusercontent.com/notofonts/latin-greek-cyrillic/${NOTOSANS_LICENCE_COMMIT}/OFL.txt \
-    /notosans/OFL.txt
 
 # ----------------------------------------------------------------------------
 # Stage: font-runtime (security updates + locales + fonts + their fontconfig rules).
