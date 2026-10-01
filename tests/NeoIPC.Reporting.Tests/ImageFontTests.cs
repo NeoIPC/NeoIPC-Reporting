@@ -6,25 +6,27 @@ namespace NeoIPC.Reporting.Tests;
 
 /// <summary>
 /// The fonts the built image installs for the reports, read through fontconfig
-/// inside the running container: exactly the four static EB Garamond OTFs the
-/// Dockerfile pins, each carrying the subscript digits, ≥, and − that the
-/// Partner and Reference Reports' bold table headers set; and Noto Sans, which
-/// their PDF figures set, together with every Noto Sans family it falls back
-/// to, resolving to the CFF-flavoured OTFs the image fetches, ≥ from Noto Sans
-/// Math in any language and each script from its own family, so that a figure
-/// the Cairo device draws embeds no TrueType CID font.
+/// inside the running container, and a figure its Cairo device draws: exactly
+/// the four static EB Garamond OTFs the Dockerfile pins, each carrying the
+/// subscript digits, ≥, and − that the Partner and Reference Reports' bold
+/// table headers set; and Noto Sans, which their PDF figures set, together with
+/// every Noto Sans family it falls back to, resolving to the Compact Font Format
+/// (CFF) OTFs the image fetches, ≥ from Noto Sans Math in any language and each
+/// script from its own family, so that a figure the Cairo device draws embeds
+/// no CID-keyed TrueType font.
 /// </summary>
 /// <remarks>
 /// Debian's <c>fonts-ebgaramond</c> registers its files under the family
 /// "EB Garamond" as well, so a revert to that package, or an installation of
 /// it beside the pinned faces, changes the file set this test compares. Its
 /// bold face lacks those glyphs, which the charset query tells apart.
-/// Cairo embeds a TrueType font's glyphs outside WinAnsi as a CID TrueType
-/// font without the CIDToGIDMap entry PDF/A-4 requires, and a CFF-flavoured
+/// Cairo embeds a TrueType font's glyphs outside WinAnsi as a CID-keyed
+/// TrueType font without the CIDToGIDMap entry PDF/A-4 requires, and a CFF
 /// font's as CFF, so the figure test fails when fontconfig hands Cairo a
-/// TrueType Noto Sans family of <c>fonts-noto-core</c> again. Pango requests
-/// each run of text in its script's language, which is what the language in
-/// the script queries stands for.
+/// TrueType Noto Sans family of <c>fonts-noto-core</c> again. The language in
+/// a script query stands for the one Pango requests for a run of that script:
+/// the locale's own language when it covers the script, otherwise the script's
+/// sample language, such as <c>hi</c> for Devanagari.
 /// Runs the image <see cref="SmokeTestImage"/> resolves, as
 /// <see cref="ParametersEndpointTests"/> does.
 /// </remarks>
@@ -121,10 +123,12 @@ public class ImageFontTests
     }
 
     [Test]
-    public async Task NotoSans_FallsBackToNotoFontsOnly()
+    public async Task NotoSans_FallsBackOnlyToNotoFontsAndEbGaramond()
     {
-        // fontconfig's whole fallback list for Noto Sans, in order; EB Garamond,
-        // the reports' own font, is the one other family the image installs.
+        // fontconfig's fallback list for Noto Sans, trimmed as a renderer sees
+        // it: a font that adds no character to the fonts before it is left out.
+        // EB Garamond, the reports' own font and also CFF, supplies the few
+        // characters no installed Noto font carries.
         var result = await _container!.ExecAsync(["fc-match", "-s", "-f", "%{family}\n", "Noto Sans"]);
 
         Assert.That(result.ExitCode, Is.EqualTo(0), result.Stderr);
@@ -133,6 +137,23 @@ public class ImageFontTests
         Assert.That(families.Where(f => !f.StartsWith("Noto", StringComparison.Ordinal)
                                         && !f.StartsWith("EB Garamond", StringComparison.Ordinal)),
             Is.Empty);
+    }
+
+    [Test]
+    public async Task NotoSans_ListsItsFallbackFamiliesBeforeTheGenericSansSerifFamilies()
+    {
+        // The configured family list, after the distribution's own rules have
+        // added the families they prefer for sans-serif, DejaVu Sans among them.
+        // A font of those lists that supports a run's language would otherwise
+        // outrank the run's Noto Sans family wherever it is installed.
+        var result = await _container!.ExecAsync(["fc-pattern", "-c", "-d", "-f", "%{family}", "Noto Sans"]);
+
+        Assert.That(result.ExitCode, Is.EqualTo(0), result.Stderr);
+        var families = result.Stdout.Split(',');
+        var devanagari = Array.IndexOf(families, "Noto Sans Devanagari");
+        Assert.That(devanagari, Is.GreaterThan(0));
+        Assert.That(devanagari, Is.LessThan(Array.IndexOf(families, "DejaVu Sans")));
+        Assert.That(devanagari, Is.LessThan(Array.IndexOf(families, "sans-serif")));
     }
 
     [TestCase("en")]
@@ -151,7 +172,9 @@ public class ImageFontTests
     }
 
     // The danda, U+0964, is in Noto Sans Bengali as well, and Noto Sans Math
-    // carries the Arabic alef, U+0627; the language decides between them.
+    // carries the Arabic alef, U+0627; the language decides between them. A
+    // Nepali locale requests ne for the danda, every other locale hi.
+    [TestCase("hi", "0964", "NotoSansDevanagari-Regular.otf")]
     [TestCase("ne", "0964", "NotoSansDevanagari-Regular.otf")]
     [TestCase("he", "05D0", "NotoSansHebrew-Regular.otf")]
     [TestCase("ar", "0627", "NotoSansArabic-Regular.otf")]

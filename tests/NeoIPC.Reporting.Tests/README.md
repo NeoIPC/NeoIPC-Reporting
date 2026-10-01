@@ -11,8 +11,8 @@ machine.
 |---|---|---|
 | `Unit` | the service's own logic, in process | nothing |
 | `Generator` | the source generator's drift tests, driving Roslyn in process | nothing |
-| `Container` | `NegativePathTests`, `ParametersEndpointTests`, `ImageFontTests`: the built image, started in isolation through Testcontainers with no DHIS2 behind it; `NegativePathTests` drives it with a placeholder session, `ParametersEndpointTests` anonymously, and `ImageFontTests` reads the fonts it installs through fontconfig inside the container | Docker. The run builds the image itself unless `NEOIPC_REPORTING_IMAGE_TAG` names one (below). |
-| `Integration` | `RenderingIntegrationTests`: the real authentication-and-render path against a running, seeded NeoIPC stack | the stack. The fixture skips when the reporting service is unreachable or DHIS2 refuses the login, and the render tests skip when the test department is not there. |
+| `Container` | `NegativePathTests`, `ParametersEndpointTests`, `ImageFontTests`: the built image, started in isolation through Testcontainers with no DHIS2 behind it; `NegativePathTests` drives it with a placeholder session, `ParametersEndpointTests` anonymously, and `ImageFontTests` reads the fonts it installs through fontconfig inside the container and checks the fonts of a figure R's Cairo device draws there | Docker. The run builds the image itself unless `NEOIPC_REPORTING_IMAGE_TAG` names one (below). |
+| `Integration` | `RenderingIntegrationTests`: the real authentication-and-render path against a running, seeded NeoIPC stack, including the embedding of every font in a rendered Partner Report PDF | the stack. The fixture skips when the reporting service is unreachable or DHIS2 refuses the login, and the render tests skip when the test department is not there. |
 
 ## Running everything from an IDE
 
