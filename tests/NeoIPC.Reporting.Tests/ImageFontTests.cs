@@ -9,8 +9,10 @@ namespace NeoIPC.Reporting.Tests;
 /// inside the running container: exactly the four static EB Garamond OTFs the
 /// Dockerfile pins, each carrying the subscript digits, ≥, and − that the
 /// Partner and Reference Reports' bold table headers set; and Noto Sans, which
-/// their PDF figures set, resolving to the four pinned CFF-flavoured OTFs, so
-/// that a figure the Cairo device draws embeds no TrueType CID font.
+/// their PDF figures set, together with every Noto Sans family it falls back
+/// to, resolving to the CFF-flavoured OTFs the image fetches, ≥ from Noto Sans
+/// Math in any language and each script from its own family, so that a figure
+/// the Cairo device draws embeds no TrueType CID font.
 /// </summary>
 /// <remarks>
 /// Debian's <c>fonts-ebgaramond</c> registers its files under the family
@@ -19,8 +21,10 @@ namespace NeoIPC.Reporting.Tests;
 /// bold face lacks those glyphs, which the charset query tells apart.
 /// Cairo embeds a TrueType font's glyphs outside WinAnsi as a CID TrueType
 /// font without the CIDToGIDMap entry PDF/A-4 requires, and a CFF-flavoured
-/// font's as CFF, so the figure test fails when fontconfig hands Cairo the
-/// TrueType Noto Sans of <c>fonts-noto-core</c> again.
+/// font's as CFF, so the figure test fails when fontconfig hands Cairo a
+/// TrueType Noto Sans family of <c>fonts-noto-core</c> again. Pango requests
+/// each run of text in its script's language, which is what the language in
+/// the script queries stands for.
 /// Runs the image <see cref="SmokeTestImage"/> resolves, as
 /// <see cref="ParametersEndpointTests"/> does.
 /// </remarks>
@@ -29,6 +33,7 @@ namespace NeoIPC.Reporting.Tests;
 public class ImageFontTests
 {
     const string FontDirectory = "/usr/share/fonts/opentype/ebgaramond/";
+    const string NotoSansDirectory = "/usr/share/fonts/opentype/notosans/";
 
     static readonly string[] PinnedFaces =
     [
@@ -98,26 +103,88 @@ public class ImageFontTests
         var result = await _container!.ExecAsync(["fc-match", "-f", "%{file}", $"Noto Sans:style={style}"]);
 
         Assert.That(result.ExitCode, Is.EqualTo(0), result.Stderr);
-        Assert.That(result.Stdout, Is.EqualTo("/usr/share/fonts/opentype/notosans/" + file));
+        Assert.That(result.Stdout, Is.EqualTo(NotoSansDirectory + file));
+    }
+
+    [Test]
+    public async Task NotoSans_EveryFamilyIsOfferedOnlyAsAnOtf()
+    {
+        var result = await _container!.ExecAsync(["fc-list", "-f", "%{family[0]}|%{file}\n"]);
+
+        Assert.That(result.ExitCode, Is.EqualTo(0), result.Stderr);
+        var files = result.Stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Where(line => line.StartsWith("Noto Sans", StringComparison.Ordinal))
+            .Select(line => line[(line.IndexOf('|') + 1)..])
+            .ToArray();
+        Assert.That(files, Is.Not.Empty);
+        Assert.That(files, Has.All.StartsWith(NotoSansDirectory).And.All.EndsWith(".otf"));
+    }
+
+    [Test]
+    public async Task NotoSans_FallsBackToNotoFontsOnly()
+    {
+        // fontconfig's whole fallback list for Noto Sans, in order; EB Garamond,
+        // the reports' own font, is the one other family the image installs.
+        var result = await _container!.ExecAsync(["fc-match", "-s", "-f", "%{family}\n", "Noto Sans"]);
+
+        Assert.That(result.ExitCode, Is.EqualTo(0), result.Stderr);
+        var families = result.Stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.That(families, Is.Not.Empty);
+        Assert.That(families.Where(f => !f.StartsWith("Noto", StringComparison.Ordinal)
+                                        && !f.StartsWith("EB Garamond", StringComparison.Ordinal)),
+            Is.Empty);
+    }
+
+    [TestCase("en")]
+    [TestCase("de")]
+    [TestCase("ne")]
+    public async Task NotoSans_GreaterThanOrEqualToComesFromTheNotoSansMathOtf(string language)
+    {
+        // U+2265, which Noto Sans lacks. fontconfig's own order would take it
+        // from DejaVu Sans, a TrueType font, and a language would otherwise let
+        // a font supporting it win, such as Noto Sans Mono or EB Garamond.
+        var result = await _container!.ExecAsync(
+            ["fc-match", "-f", "%{file}", $"Noto Sans:lang={language}:charset=2265"]);
+
+        Assert.That(result.ExitCode, Is.EqualTo(0), result.Stderr);
+        Assert.That(result.Stdout, Is.EqualTo(NotoSansDirectory + "NotoSansMath-Regular.otf"));
+    }
+
+    // The danda, U+0964, is in Noto Sans Bengali as well, and Noto Sans Math
+    // carries the Arabic alef, U+0627; the language decides between them.
+    [TestCase("ne", "0964", "NotoSansDevanagari-Regular.otf")]
+    [TestCase("he", "05D0", "NotoSansHebrew-Regular.otf")]
+    [TestCase("ar", "0627", "NotoSansArabic-Regular.otf")]
+    [TestCase("th", "0E01", "NotoSansThai-Regular.otf")]
+    [TestCase("bn", "0995", "NotoSansBengali-Regular.otf")]
+    public async Task NotoSans_EachScriptComesFromTheOtfOfItsOwnFamily(string language, string codepoint, string file)
+    {
+        var result = await _container!.ExecAsync(
+            ["fc-match", "-f", "%{file}", $"Noto Sans:lang={language}:charset={codepoint}"]);
+
+        Assert.That(result.ExitCode, Is.EqualTo(0), result.Stderr);
+        Assert.That(result.Stdout, Is.EqualTo(NotoSansDirectory + file));
     }
 
     [Test]
     public async Task NotoSans_AFigureTheCairoDeviceDrawsEmbedsNoTrueTypeCidFont()
     {
-        // A bold title and a regular axis label, each with a minus sign and
-        // Greek letters, which lie outside WinAnsi and so reach Cairo's CID
-        // fonts; the counts are of the font dictionaries in the written PDF.
+        // A bold title and regular axis labels with a minus sign, Greek letters,
+        // and ≥, which lie outside WinAnsi and so reach Cairo's CID fonts, and
+        // with Nepali, Hebrew, and Arabic, all but the minus sign and the Greek
+        // through fallback fonts; drawn in a locale the renders use, and counted
+        // as the font dictionaries in the written PDF.
         const string script = """
             out <- tempfile(fileext = ".pdf")
             grDevices::cairo_pdf(out, family = "Noto Sans")
-            plot(1:3, main = "Title − αβ", xlab = "Label − γδ")
+            plot(1:3, main = "Title ≥ − αβ नेपाली।", xlab = "Label ≥ − γδ עברית", ylab = "العربية")
             invisible(grDevices::dev.off())
             bytes <- readBin(out, "raw", file.info(out)$size)
             count <- function(s) length(grepRaw(s, bytes, fixed = TRUE, all = TRUE))
             cat(count("/CIDFontType2"), count("/FontFile2"), count("/CIDFontType0"))
             """;
 
-        var result = await _container!.ExecAsync(["env", "LC_ALL=C.UTF-8", "Rscript", "-e", script]);
+        var result = await _container!.ExecAsync(["env", "LC_ALL=en_GB.UTF-8", "Rscript", "-e", script]);
 
         Assert.That(result.ExitCode, Is.EqualTo(0), result.Stderr);
         var counts = result.Stdout.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToArray();

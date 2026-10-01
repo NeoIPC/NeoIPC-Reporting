@@ -171,8 +171,9 @@ jobs:
     # the .NET build stage and everything it transitively pulls in;
     # --target tinytex-builder, --target quarto-downloader,
     # --target ebgaramond-downloader, and --target notosans-downloader carry
-    # the download pins (ADD --checksum), and are where a bump fails when a
-    # checksum, or for TinyTeX its snapshot, is wrong. Those four reach the
+    # the download pins (ADD --checksum, and for Noto Sans a commit), and are
+    # where a bump fails when a checksum, a commit, or for TinyTeX its
+    # snapshot, is wrong. Those four reach the
     # image only through the stage it is
     # assembled from, and no pull-request job assembles it — that is the
     # dispatch-only container job and the release workflow — so without these
