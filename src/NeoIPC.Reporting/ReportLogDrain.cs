@@ -202,9 +202,10 @@ static partial class ReportLogDrain
             // record carrying an R error signal is the failure. The check is
             // level-AGNOSTIC on purpose, because the level depends on how Quarto
             // runs knitr (callR in quarto-dev/quarto-cli's src/execute/rmd.ts,
-            // v1.10.18): under --quiet, as QuartoReportProducer runs it, a failed
-            // run's output arrives as one ERROR record, and without it the output
-            // streams as INFO records. R-exclusive terminal signals ("Execution
+            // v1.10.18): with the render's own quiet flag set, a failed run's
+            // output arrives as one ERROR record; QuartoReportProducer's --quiet is
+            // a log option that leaves that flag unset, so the output streams as
+            // INFO records. R-exclusive terminal signals ("Execution
             // halted", "Quitting from", a native "caught segfault" / "R is aborting
             // now" crash) match even without colour, so they survive NO_COLOR and
             // do not depend on the colour Quarto applies; the colour gate covers
