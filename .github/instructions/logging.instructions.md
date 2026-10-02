@@ -1,5 +1,5 @@
 ---
-applyTo: "src/NeoIPC.Reporting/ReportLogging.cs,src/NeoIPC.Reporting/*ReportProducer.cs,src/NeoIPC.Reporting/appsettings*.json,tests/NeoIPC.Reporting.Tests/ReportLoggingTests.cs"
+applyTo: "src/NeoIPC.Reporting/ReportLog*.cs,src/NeoIPC.Reporting/*ReportProducer.cs,src/NeoIPC.Reporting/appsettings*.json,tests/NeoIPC.Reporting.Tests/ReportLoggingTests.cs"
 ---
 
 ## Logging
