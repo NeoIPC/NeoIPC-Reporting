@@ -87,8 +87,9 @@ jobs:
     #
     # Worth an explicit check because the defect is invisible locally: with `* text=auto` declared, a tool
     # writing CRLF into the working tree still produces an LF blob and a clean `git status`, so the index
-    # can essentially never report it. The BOM half matters here in particular — Visual Studio and Rider
-    # both add one to new files by default, which is where this repository's BOM'd C# came from.
+    # can essentially never report it. The BOM half matters for the C# in particular: Visual Studio adds a
+    # BOM to a new .cs file by default, which .editorconfig's `charset = utf-8` overrides, while Rider adds
+    # none unless an encoding setting asks for one.
     name: Text-file hygiene
     runs-on: ubuntu-latest
     steps:

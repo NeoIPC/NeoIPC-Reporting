@@ -12,7 +12,7 @@ namespace NeoIPC.Reporting;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Subclasses today: <see cref="QuartoReportProducer"/> (Quarto +
+/// Subclasses: <see cref="QuartoReportProducer"/> (Quarto +
 /// LaTeX) and <see cref="RScriptReportProducer"/> (raw Rscript JSON
 /// output). The base class buffers stdout into a memory stream so the
 /// subprocess can finish before the response starts flowing — this
@@ -27,7 +27,7 @@ namespace NeoIPC.Reporting;
 /// those records into <see cref="ILogger"/> — on the success path as well
 /// as on failure — under a per-render category tree rooted at
 /// <c>NeoIPC.Reporting.Render.&lt;report&gt;</c>, so a successful render's
-/// DHIS2 query trace is no longer discarded. Each render carries a
+/// DHIS2 query trace reaches the log too. Each render carries a
 /// <c>RenderId</c> scope (and a nested <c>ProcessId</c> scope once the
 /// child starts) so concurrent renders' drained entries stay correlated.
 /// </para>
@@ -172,13 +172,13 @@ abstract partial class ExternalProcessReportProducer : IDataProducer
 
             // The child's structured log files are complete only now that it
             // has exited, so this is inherently a post-process drain. Run it on
-            // both exit paths: on success it surfaces the render's R/Quarto
-            // diagnostics (incl. the DHIS2 query trace) that were previously
-            // discarded; on failure it precedes the error-result mapping. The
-            // drain is a best-effort observability side-channel: an IO/parse
-            // failure reading the log files must NEVER fail an otherwise-
-            // successful render (the output is already fully buffered), so
-            // swallow and log any non-cancellation drain error.
+            // both exit paths: on success it is the only way the render's R/Quarto
+            // diagnostics (incl. the DHIS2 query trace) reach the log; on failure
+            // it precedes the error-result mapping. The drain is a best-effort
+            // observability side-channel: an IO/parse failure reading the log
+            // files must NEVER fail an otherwise-successful render (the output is
+            // already fully buffered), so swallow and log any non-cancellation
+            // drain error.
             try
             {
                 await DrainDiagnostics(reportGenerationProcess.ExitCode, cancellationToken);

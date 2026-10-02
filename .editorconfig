@@ -20,11 +20,11 @@ trim_trailing_whitespace = true
 trim_trailing_whitespace = false
 
 # tests/NeoIPC.Reporting.Tests/SecurityRegressionTests.cs holds a NUL byte as a null-byte-injection
-# test vector, so git classifies it as binary and .gitattributes deliberately leaves it alone. Nothing
+# test vector, so .gitattributes declares it -text, exempt from end-of-line conversion. Nothing
 # here can corrupt it (EditorConfig only acts when a file is edited and saved), but do not "fix" that
 # file's encoding or endings by hand either — the vector is the point of the test.
 
-# C# indentation is not otherwise configured in this repository; only encoding and line endings are
-# declared here, so a future .editorconfig style section can be added without conflicting.
+# The charset restated for C#, where it is load-bearing (see the top of this file); no C# code style is
+# configured here.
 [*.{cs,csx}]
 charset = utf-8

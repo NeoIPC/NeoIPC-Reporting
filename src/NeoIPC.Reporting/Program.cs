@@ -35,11 +35,8 @@ if (args.Length >= 2 && args[0] == "--emit-schemas")
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = true,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        // Pin the indentation newline. WriteIndented alone uses Environment.NewLine, so on Windows this
-        // rewrote the committed src/schemas/*.json snapshots in neoipc-app as CRLF while CI produced LF —
-        // measured, not assumed: the default emits CR=5 LF=5 for a small object, LF=5 CR=0 with this set.
-        // Those snapshots are committed and diffed by that repository's schema-drift check, so the whole
-        // file would show as changed depending on which platform last ran --emit-schemas.
+        // WriteIndented alone indents with Environment.NewLine, so without this pin a run on Windows writes
+        // the snapshots neoipc-app commits with CRLF line endings instead of LF.
         NewLine = "\n",
     };
     File.WriteAllText(

@@ -108,7 +108,7 @@ static class ReportLogging
     /// <summary>
     /// Maps a Quarto json-stream <c>levelName</c> onto <see cref="LogLevel"/>.
     /// Quarto's canonical warning token is <c>WARN</c> (the Deno
-    /// <c>@std/log</c> level name; <c>refs/quarto-cli/src/core/log.ts</c>
+    /// <c>@std/log</c> level name; <c>src/core/log.ts</c> in quarto-dev/quarto-cli
     /// declares <c>LogLevel = "DEBUG"|"INFO"|"WARN"|"ERROR"|"CRITICAL"</c>);
     /// <c>WARNING</c> is accepted as a defensive alias. Unknown values fall
     /// back to <see cref="LogLevel.Debug"/>.

@@ -312,11 +312,12 @@ abstract class QuartoReportProducer : ExternalProcessReportProducer
         else
             startInfo.EnvironmentVariables.Remove("NEOIPCR_DEV_PATH");
 
-        // knitr colourises the R stderr it streams to Quarto red, and the log
-        // drain uses that red (ESC[31m) as the language-independent gate that
-        // identifies R-origin records. Deno gates its colour on !Deno.noColor, so
-        // an inherited NO_COLOR would silently disable the gate and re-bury R
-        // errors at INFO on .Quarto — scrub it from the child env. That scrub
+        // Quarto colours the Rscript stderr red (callR in quarto-dev/quarto-cli's
+        // src/execute/rmd.ts), and the log drain uses that red (ESC[31m) as the
+        // language-independent gate that identifies R-origin records. Deno gates
+        // its colour on !Deno.noColor, so an inherited NO_COLOR would silently
+        // disable the gate and re-bury R errors at INFO on .Quarto — scrub it
+        // from the child env. That scrub
         // is what the gate depends on; FORCE_COLOR rides along as the
         // conventional positive signal. Assign rather than Add:
         // StringDictionary.Add throws ArgumentException when the parent

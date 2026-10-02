@@ -148,10 +148,10 @@ static partial class ReportLogDrain
             // at Error, so ANY findLatexError shape is recovered without
             // enumerating them — the l.<n> line-context, the fixed "No pages of
             // output", an emergency-stop / output-routine <*>/<output> context, or
-            // a future shape like the 1.10 luaotfload-fallback guidance. Keying on
-            // writeError's structure (stable upstream) rather than the detail's
-            // content (which upstream changes between versions) is what makes this
-            // future-proof. Self-gating: writeError only runs on a failed compile,
+            // the luaotfload-fallback guidance. Keying on writeError's structure
+            // rather than on the detail's content, whose shapes differ between
+            // Quarto releases, is what lets the recovery catch shapes it does not
+            // enumerate. Self-gating: writeError only runs on a failed compile,
             // and the anchor is exitCode-guarded for belt and braces.
             if (latexErrorActive)
             {
@@ -197,16 +197,19 @@ static partial class ReportLogDrain
             }
 
             // R/knitr fatal recovery — only on a failed render, so benign red
-            // warnings on a successful render are not elevated. knitr colourises
-            // the stderr it streams to Quarto red (ESC[31m); a red record carrying
-            // an R error signal is the failure. The check is level-AGNOSTIC on
-            // purpose: Quarto logs these as INFO today, but quarto-dev#12799 plans
-            // to promote knitr errors to ERROR at source — handling either level
-            // keeps the .R.report attribution when that lands. R-exclusive
-            // terminal signals ("Execution halted", "Quitting from", a native
-            // "caught segfault" / "R is aborting now" crash) match even without
-            // colour (survives NO_COLOR and a future colour change); the colour
-            // gate covers the otherwise-ambiguous "Error:" / "! ". The structured
+            // warnings on a successful render are not elevated. Quarto colours the
+            // stderr of the Rscript process that runs knitr red (ESC[31m); a red
+            // record carrying an R error signal is the failure. The check is
+            // level-AGNOSTIC on purpose, because the level depends on how Quarto
+            // runs knitr (callR in quarto-dev/quarto-cli's src/execute/rmd.ts,
+            // v1.10.18): with the render's own quiet flag set, a failed run's
+            // output arrives as one ERROR record; QuartoReportProducer's --quiet is
+            // a log option that leaves that flag unset, so the output streams as
+            // INFO records. R-exclusive terminal signals ("Execution
+            // halted", "Quitting from", a native "caught segfault" / "R is aborting
+            // now" crash) match even without colour, so they survive NO_COLOR and
+            // do not depend on the colour Quarto applies; the colour gate covers
+            // the otherwise-ambiguous "Error:" / "! ". The structured
             // DHIS2/neoipcr trace arrives separately via the layout_json file,
             // drained with its true namespace by DrainRLogAsync.
             if (exitCode != 0 &&
@@ -270,23 +273,24 @@ static partial class ReportLogDrain
     private static partial Regex QuartoIssue13394DetectionRegex();
 
     // Pandoc prefixes the first line of every message with its verbosity, e.g.
-    // "[WARNING] …" (refs/pandoc/src/Text/Pandoc/Class/IO.hs; continuation
-    // lines are indented, not re-prefixed). Multiline so ^ matches each line
-    // start — one re-logged Quarto INFO record can batch several Pandoc
-    // messages. Pandoc emits only ERROR / WARNING / INFO.
+    // "[WARNING] …" (logOutput in jgm/pandoc's src/Text/Pandoc/Class/IO.hs;
+    // continuation lines are indented, not re-prefixed). Multiline so ^ matches
+    // each line start — one re-logged Quarto INFO record can batch several
+    // Pandoc messages. Pandoc emits only ERROR / WARNING / INFO.
     [GeneratedRegex(@"^\[(ERROR|WARNING|INFO)\]", RegexOptions.Multiline)]
     private static partial Regex PandocLevelPrefixRegex();
 
-    // knitr colourises the R stderr it streams to Quarto red (SGR "ESC[31m",
-    // Deno colors.red — refs/quarto-cli/src/execute/rmd.ts), so the escape marks
-    // a record as R-origin regardless of its (flattened) level. The ESC is built
-    // from its code point (0x1B) so the source carries no raw control byte and no
-    // greedy C# \x escape. Reliable only because GetProcessStartInfo scrubs
-    // NO_COLOR from the child env — Deno's red is gated on !Deno.noColor.
+    // Quarto colours the stderr of the Rscript process that runs knitr red (SGR
+    // "ESC[31m", Deno colors.red — callR in quarto-dev/quarto-cli's
+    // src/execute/rmd.ts, v1.10.18), so the escape marks a record as R-origin
+    // regardless of its level. The ESC is built from its code point (0x1B) so the
+    // source carries no raw control byte and no greedy C# \x escape. Reliable
+    // only because GetProcessStartInfo scrubs NO_COLOR from the child env —
+    // Deno's red is gated on !Deno.noColor.
     private static readonly string KnitrColorCode = (char)0x1b + "[31m";
 
-    // Strip ANSI SGR colour sequences (knitr's red ESC[31m…ESC[39m, Quarto's blue
-    // progress) from a record before it is logged, so the emitted text is clean.
+    // Strip ANSI SGR colour sequences (the red ESC[31m…ESC[39m Quarto puts on the
+    // Rscript stderr, Quarto's blue progress) from a record before it is logged, so the emitted text is clean.
     // \e is the .NET-regex escape for ESC (U+001B) — no C# \x/\u needed.
     [GeneratedRegex(@"\e\[[0-9;]*m")]
     private static partial Regex StripSgrRegex();
@@ -295,7 +299,7 @@ static partial class ReportLogDrain
     // frame, Rscript's terminal "Execution halted", and base R's native-crash
     // handler ("*** caught segfault ***", "… R is aborting now …"). These cannot
     // be confused with Quarto/Pandoc/LaTeX output, so they are matched WITHOUT the
-    // colour gate — recovery survives NO_COLOR and a future colour change.
+    // colour gate — recovery survives NO_COLOR and does not depend on the colour.
     [GeneratedRegex(@"Execution halted|Quitting from|caught segfault|R is aborting now")]
     private static partial Regex RExclusiveFatalRegex();
 
