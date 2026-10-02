@@ -289,8 +289,8 @@ static partial class ReportLogDrain
     // Deno's red is gated on !Deno.noColor.
     private static readonly string KnitrColorCode = (char)0x1b + "[31m";
 
-    // Strip ANSI SGR colour sequences (knitr's red ESC[31m…ESC[39m, Quarto's blue
-    // progress) from a record before it is logged, so the emitted text is clean.
+    // Strip ANSI SGR colour sequences (the red ESC[31m…ESC[39m Quarto puts on the
+    // Rscript stderr, Quarto's blue progress) from a record before it is logged, so the emitted text is clean.
     // \e is the .NET-regex escape for ESC (U+001B) — no C# \x/\u needed.
     [GeneratedRegex(@"\e\[[0-9;]*m")]
     private static partial Regex StripSgrRegex();

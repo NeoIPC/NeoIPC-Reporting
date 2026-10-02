@@ -434,10 +434,10 @@ public class ReportLoggingTests
     {
         var (factory, entries) = BuildFactory(LogLevel.Warning);
         using var _ = factory;
-        // Future-proofing for quarto-dev#12799: when Quarto promotes knitr errors to
-        // ERROR at source, the record arrives as levelName ERROR (not INFO). The
-        // level-agnostic R detection keeps re-attributing it to .R.report instead of
-        // letting it fall through to .Quarto.
+        // A knitr failure arrives as levelName ERROR (not INFO) when Quarto runs knitr
+        // with the render's own quiet flag set (callR in quarto-dev/quarto-cli's
+        // src/execute/rmd.ts). The level-agnostic R detection re-attributes it to
+        // .R.report instead of letting it fall through to .Quarto.
         var esc = (char)0x1b;
         var file = WriteLines(
             QuartoRecord("ERROR", $"{esc}[31mError:\n! object 'foo' not found\n{esc}[39m"));
