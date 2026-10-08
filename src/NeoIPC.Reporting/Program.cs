@@ -92,6 +92,7 @@ builder.Services.AddHostedService<ReportingWarmupHostedService>();
 builder.Services.AddSingleton<ReferenceDataStorage>();
 builder.Services.AddSingleton<ValidationExceptionStorage>();
 builder.Services.AddSingleton<ReferenceDataMetadataExtractor>();
+builder.Services.AddSingleton<IValidationExceptionChecker, ValidationExceptionChecker>();
 
 builder.Services.AddSingleton<SessionPrincipalCache>();
 // Typed HttpClient for DHIS2 /api/me. SocketsHttpHandler is the
@@ -137,6 +138,22 @@ if (!string.IsNullOrEmpty(pathBase))
     app.UsePathBase(pathBase);
 if (app.Environment.IsDevelopment())
     app.MapOpenApi();
+
+// RFC 9110 §15.5.2 requires a challenge on every 401. The one the service can
+// name is its own scheme, the DHIS2 session cookie, which no browser answers
+// with a login dialog as it would Basic. Set here, it covers the
+// authentication handler's challenge and a report's refusal of a request
+// without a session alike.
+app.Use((context, next) =>
+{
+    context.Response.OnStarting(() =>
+    {
+        if (context.Response.StatusCode == StatusCodes.Status401Unauthorized)
+            context.Response.Headers.WWWAuthenticate = Dhis2SessionAuthenticationDefaults.AuthenticationScheme;
+        return Task.CompletedTask;
+    });
+    return next(context);
+});
 
 app.UseAuthentication();
 app.UseAuthorization();

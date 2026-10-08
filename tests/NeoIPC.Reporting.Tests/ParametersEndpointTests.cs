@@ -115,10 +115,11 @@ public class ParametersEndpointTests
     }
 
     [Test]
-    public async Task ValidationReportParameters_ListTheThreeCallerParameters()
+    public async Task ValidationReportParameters_ListTheCallerParameters()
     {
-        // The exception file and the dhis2* params are server-side and must not
-        // appear; rules is the integer[] the app's per-rule toggles send.
+        // The exception file, the day it was uploaded, and the dhis2* params
+        // are server-side and must not appear; rules is the integer[] the
+        // app's per-rule toggles send.
         Assert.That(_http, Is.Not.Null);
         var response = await _http!.GetAsync("/validation-report/parameters");
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
@@ -132,6 +133,8 @@ public class ParametersEndpointTests
             ["departmentFilter"] = "character[]",
             ["rules"] = "integer[]",
             ["includeTestData"] = "logical",
+            ["applyValidationExceptions"] = "logical",
+            ["includeUnusedValidationExceptions"] = "logical",
         }));
     }
 }

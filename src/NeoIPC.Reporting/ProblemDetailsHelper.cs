@@ -15,6 +15,14 @@ public static class ProblemDetailsHelper
     public static IResult BadRequest(string code, string title, string detail) =>
         Problem(code, title, detail, StatusCodes.Status400BadRequest);
 
+    /// <summary>
+    /// Refuses a request that does not authenticate, with the stable
+    /// <paramref name="code"/> (<see cref="ProblemCodes"/>); the service adds
+    /// the challenge RFC 9110 §15.5.2 requires to every 401 it sends.
+    /// </summary>
+    public static IResult Unauthorized(string code, string title, string detail) =>
+        Problem(code, title, detail, StatusCodes.Status401Unauthorized);
+
     public static IResult Forbidden(string code, string title, string detail) =>
         Problem(code, title, detail, StatusCodes.Status403Forbidden);
 

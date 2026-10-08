@@ -13,7 +13,8 @@ namespace NeoIPC.Reporting;
 /// <para>
 /// Constructor-injecting <see cref="Dhis2Endpoint"/> forces DI to
 /// build it at host startup; any validation failure aborts startup
-/// rather than surfacing on the first request.
+/// rather than surfacing on the first request. The service logs the
+/// address the reports' links to DHIS2 take, which it reads only then.
 /// </para>
 ///
 /// <para>
@@ -26,19 +27,36 @@ public sealed class ReportingWarmupHostedService : IHostedService
 {
     readonly IOptions<ReportingOptions> _options;
     readonly ReportLanguageRegistry _registry;
+    readonly Dhis2Endpoint _dhis2Endpoint;
+    readonly ILogger<ReportingWarmupHostedService> _logger;
 
     public ReportingWarmupHostedService(
         IOptions<ReportingOptions> options,
         ReportLanguageRegistry registry,
-        Dhis2Endpoint dhis2Endpoint)
+        Dhis2Endpoint dhis2Endpoint,
+        ILogger<ReportingWarmupHostedService> logger)
     {
-        _ = dhis2Endpoint;
         _options = options;
         _registry = registry;
+        _dhis2Endpoint = dhis2Endpoint;
+        _logger = logger;
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
+        // A changed address takes effect only in a container created after
+        // the change, so this line shows which one the running service holds.
+        // It carries no credential, which Dhis2Endpoint refuses in it.
+        if (_dhis2Endpoint.PublicBaseUriConfigured)
+            _logger.LogInformation(
+                "The reports link to DHIS2 at {Dhis2PublicBaseUrl}, from Reporting:Dhis2PublicBaseUrl.",
+                _dhis2Endpoint.PublicBaseUri.AbsoluteUri);
+        else
+            _logger.LogInformation(
+                "The reports link to DHIS2 at {Dhis2PublicBaseUrl}, the DHIS2 address the service reads from "
+                + "(Reporting:Dhis2BaseUrl), since Reporting:Dhis2PublicBaseUrl is unset.",
+                _dhis2Endpoint.PublicBaseUri.AbsoluteUri);
+
         var opts = _options.Value;
         var sourceDir = new DirectoryInfo(opts.ReportsSourceDir);
         if (!sourceDir.Exists)

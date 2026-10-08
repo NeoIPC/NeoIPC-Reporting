@@ -31,6 +31,14 @@ public static class ProblemCodes
     public const string InvalidParameterValue = "invalid-parameter-value";
     public const string NoAcceptableOutput = "no-acceptable-output";
 
+    // Report render — every report
+    /// <summary>
+    /// The request carries no DHIS2 session cookie (<c>JSESSIONID</c>). Every
+    /// report reads its data from DHIS2 in the caller's session, so no report
+    /// renders without one.
+    /// </summary>
+    public const string MissingDhis2Session = "missing-dhis2-session";
+
     // Report render — Validation
     /// <summary>
     /// The <c>rules</c> parameter named an id the Validation Report's rule
@@ -48,4 +56,14 @@ public static class ProblemCodes
     public const string DuplicateReferenceData = "duplicate-reference-data";
     public const string ResourceNotFound = "resource-not-found";
     public const string UnsupportedMediaType = "unsupported-media-type";
+    /// <summary>
+    /// An uploaded validation-exception file is not a list neoipcr can read,
+    /// or its records do not name their department (<c>DEPARTMENT_CODE</c>),
+    /// which the one stored list for every department needs. The detail is
+    /// the check's reason: neoipcr's message, or the check's own for a list
+    /// without department codes. Where the reason names the file, it names
+    /// it by its display name; neoipcr's refusals of a column's values or of
+    /// a record's level name no file.
+    /// </summary>
+    public const string InvalidValidationExceptions = "invalid-validation-exceptions";
 }

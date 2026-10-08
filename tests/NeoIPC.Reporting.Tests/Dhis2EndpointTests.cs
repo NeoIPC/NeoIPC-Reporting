@@ -1,3 +1,5 @@
+using System.Text.Json;
+using Microsoft.AspNetCore.Http.HttpResults;
 using NeoIPC.Reporting;
 using NUnit.Framework;
 
@@ -200,6 +202,30 @@ public class Dhis2EndpointTests
         {
             Assert.That(ep.PublicBaseUri, Is.EqualTo(new Uri("https://neoipc.example.org/dhis")));
             Assert.That(ep.BaseUri, Is.EqualTo(new Uri(ServiceAddress)));
+        });
+    }
+
+    [TestCase("https://neoipc.example.org/dhis", true)]
+    [TestCase(null, false)]
+    [TestCase("   ", false)]
+    public void Build_RecordsWhetherThePublicBaseUrlIsConfigured(string? publicBaseUrl, bool configured)
+    {
+        Assert.That(Dhis2Endpoint.Build(ServiceAddress, publicBaseUrl).PublicBaseUriConfigured, Is.EqualTo(configured));
+    }
+
+    [Test]
+    public void TheAdminEndpoint_ServesTheLinksBase_AndWhetherItIsConfigured()
+    {
+        var result = Dhis2PublicBaseUrlEndpoint.AdminGet(Dhis2Endpoint.Build(ServiceAddress));
+
+        Assert.That(result, Is.InstanceOf<Ok<AdminDhis2PublicBaseUrl>>());
+        var body = ((Ok<AdminDhis2PublicBaseUrl>)result).Value!;
+        Assert.Multiple(() =>
+        {
+            Assert.That(body, Is.EqualTo(new AdminDhis2PublicBaseUrl(ServiceAddress + "/", false)));
+            // The member names the app reads, as the service's JSON options write them.
+            Assert.That(JsonSerializer.Serialize(body, new JsonSerializerOptions(JsonSerializerDefaults.Web)),
+                Is.EqualTo($$"""{"publicBaseUrl":"{{ServiceAddress}}/","configured":false}"""));
         });
     }
 

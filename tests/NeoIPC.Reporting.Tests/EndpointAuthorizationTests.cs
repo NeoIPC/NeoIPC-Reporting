@@ -42,6 +42,8 @@ public class EndpointAuthorizationTests
         builder.Services.AddSingleton<ReferenceDataStorage>();
         builder.Services.AddSingleton<ValidationExceptionStorage>();
         builder.Services.AddSingleton<ReferenceDataMetadataExtractor>();
+        builder.Services.AddSingleton<IValidationExceptionChecker, ValidationExceptionChecker>();
+        builder.Services.AddSingleton<Dhis2Endpoint>();
         var app = builder.Build();
 
         ApiEndpoints.Map(app);

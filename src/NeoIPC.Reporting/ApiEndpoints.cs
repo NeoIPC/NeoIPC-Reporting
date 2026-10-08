@@ -17,9 +17,10 @@ static class ApiEndpoints
     public static void Map(IEndpointRouteBuilder app)
     {
         // Render endpoints authorize in-handler (after request-shape
-        // validation, and conditionally for Reference) — see
-        // NeoIpcAuthorization. The InHandlerAuthorized marker records that
-        // so the endpoint-coverage test doesn't flag them as public.
+        // validation, and conditionally on some values for Reference and
+        // Validation) — see NeoIpcAuthorization. The InHandlerAuthorized
+        // marker records that so the endpoint-coverage test doesn't flag
+        // them as public.
         app.MapGet("reference-report", ReferenceReport.Get)
             .WithName("GetReferenceReport")
             .WithMetadata(new InHandlerAuthorized(
@@ -44,7 +45,8 @@ static class ApiEndpoints
             .WithMetadata(new PublicEndpoint("static source-generated parameter schema; no data"));
         app.MapGet("validation-report", ValidationReport.Get)
             .WithName("GetValidationReport")
-            .WithMetadata(new InHandlerAuthorized("NeoIpcReport"))
+            .WithMetadata(new InHandlerAuthorized(
+                "NeoIpcReport; NeoIpcAdmin for applyValidationExceptions=false or includeUnusedValidationExceptions=true"))
             .WithRequestTimeout(TimeSpan.FromSeconds(360));
         app.MapGet("validation-report/parameters", () =>
                 Results.Ok(new { fields = ValidationReportApiParameters.Schema }))
@@ -109,15 +111,20 @@ static class ApiEndpoints
         admin.MapDelete("reference-data/{id}", ReferenceDataEndpoints.AdminDelete)
             .WithName("AdminDeleteReferenceData");
 
-        // The validation-exception file is a singleton (one file, auto-applied),
-        // so its admin API has no id segment: GET current metadata, PUT to
-        // upload-replace, DELETE to remove.
+        // The validation-exception file is a singleton (one file, applied to
+        // every render unless an administrator switches it off), so its admin
+        // API has no id segment: GET current metadata, PUT to upload-replace
+        // once neoipcr has read the file, DELETE to remove.
         admin.MapGet("validation-exceptions", ValidationExceptionEndpoints.AdminGet)
             .WithName("AdminGetValidationException");
         admin.MapPut("validation-exceptions", ValidationExceptionEndpoints.AdminUpload)
             .WithName("AdminUploadValidationException")
-            .DisableAntiforgery();
+            .DisableAntiforgery()
+            .WithRequestTimeout(TimeSpan.FromSeconds(120));
         admin.MapDelete("validation-exceptions", ValidationExceptionEndpoints.AdminDelete)
             .WithName("AdminDeleteValidationException");
+
+        admin.MapGet("dhis2-public-base-url", Dhis2PublicBaseUrlEndpoint.AdminGet)
+            .WithName("AdminGetDhis2PublicBaseUrl");
     }
 }

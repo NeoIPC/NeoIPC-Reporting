@@ -102,7 +102,8 @@ For DHIS2 authentication and live data, run a DHIS2 instance alongside it and po
 the service loads `appsettings.json` and `appsettings.Development.json` only, so a
 `.local.json` overlay would be read by nothing. When the browser reaches that DHIS2 at another
 address, set `Reporting:Dhis2PublicBaseUrl` (`Reporting__Dhis2PublicBaseUrl`) to it too: the
-reports' links to DHIS2, such as the Validation Report's Tracker Capture dashboards, use it.
+reports' links to DHIS2, such as the Validation Report's Tracker Capture dashboards, use it. The
+service reads both at startup, so a change takes effect when it next starts.
 
 ## Build modes (Docker)
 
@@ -170,7 +171,9 @@ docker build -f src/NeoIPC.Reporting/Dockerfile \
 
 The matching `Reporting:BuildMode` runtime env is baked into the image
 per `NEOIPCR_SOURCE` mode — `github-branch` and `github-tag` images
-ignore `NEOIPCR_DEV_PATH`; `workspace` images export it as `/neoipcr`.
+ignore `NEOIPCR_DEV_PATH`; in `workspace` images the service sets it to
+`/neoipcr` for the R processes it starts, and the image itself sets no
+such variable.
 
 ## Deployment expectations
 
@@ -195,7 +198,12 @@ ignore `NEOIPCR_DEV_PATH`; `workspace` images export it as `/neoipcr`.
   yet that refusal stops the whole service: it is deliberately at
   startup, so a deployment learns of the misconfiguration when it
   deploys rather than on the first Validation Report render. No refusal
-  repeats the value.
+  repeats the value. The service reads it once, when it starts, and logs
+  the address the links take; a changed value therefore takes effect only
+  in a container created after the change (`docker compose up -d`), since
+  a restart keeps the environment the container was created with.
+  `GET /admin/dhis2-public-base-url` returns the address in use and
+  whether it is the configured one.
 - **Read-only resource trees.** The image's `/toolkit/` and (in
   workspace mode) `/neoipcr/` trees are `chmod -R a-w` at build time.
   The render path only ever reads them — it copies the rendered
