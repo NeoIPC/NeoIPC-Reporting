@@ -90,6 +90,8 @@ class ReferenceReport
         CancellationToken cancellationToken)
     {
         var (sessionId, accept, acceptLang) = ReportRequestBase.ReadHeaders(httpRequest);
+        if (sessionId is null)
+            return ReportRequestBase.MissingSession();
         if (accept.IsDefaultOrEmpty)
             return Results.StatusCode(406);
 

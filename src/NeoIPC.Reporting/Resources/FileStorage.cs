@@ -37,6 +37,14 @@ public abstract partial class FileStorage
 
     static readonly Regex s_idRegex = IdRegexFactory();
 
+    // A store's commits and deletions run one at a time. Two commits under one
+    // id, as two uploads of the singleton validation-exception file make,
+    // would otherwise interleave their moves through the one temporary sidecar
+    // path and pair one upload's data with the other's sidecar; a deletion
+    // between a commit's two moves would leave a sidecar without its data.
+    // Each store is a singleton, so the lock covers every writer.
+    readonly SemaphoreSlim _writeLock = new(1, 1);
+
     /// <summary>The directory holding all entries for this resource type.</summary>
     public string Root { get; }
 
@@ -98,8 +106,16 @@ public abstract partial class FileStorage
     {
         var data = DataPath(id);
         var meta = MetaPath(id);
-        if (File.Exists(data)) File.Delete(data);
-        if (File.Exists(meta)) File.Delete(meta);
+        _writeLock.Wait();
+        try
+        {
+            if (File.Exists(data)) File.Delete(data);
+            if (File.Exists(meta)) File.Delete(meta);
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
     }
 
     /// <summary>
@@ -110,14 +126,24 @@ public abstract partial class FileStorage
     /// The caller may inspect the staged file (e.g. extract metadata via
     /// an external process) before deciding the final id and sidecar
     /// shape, then call <see cref="CommitAsync"/> to publish the entry —
-    /// or <see cref="Discard"/> to roll back.
+    /// or <see cref="Discard"/> to roll back. A copy that fails, as when the
+    /// client aborts or the request times out, removes its partial file
+    /// itself, since its path never reaches the caller.
     /// </remarks>
     public async Task<string> StageAsync(Stream content, CancellationToken ct)
     {
         Directory.CreateDirectory(Root);
         var stagedPath = Path.Combine(Root, $"staging-{Guid.NewGuid():n}.tmp");
-        await using var fs = File.Create(stagedPath);
-        await content.CopyToAsync(fs, ct);
+        try
+        {
+            await using var fs = File.Create(stagedPath);
+            await content.CopyToAsync(fs, ct);
+        }
+        catch
+        {
+            File.Delete(stagedPath);
+            throw;
+        }
         return stagedPath;
     }
 
@@ -138,16 +164,24 @@ public abstract partial class FileStorage
         var metaPath = MetaPath(id);
         var tmpMeta = metaPath + ".tmp";
 
-        await File.WriteAllTextAsync(tmpMeta, sidecarJson, ct);
+        await _writeLock.WaitAsync(ct);
         try
         {
-            File.Move(stagedDataPath, dataPath, overwrite: true);
-            File.Move(tmpMeta, metaPath, overwrite: true);
+            await File.WriteAllTextAsync(tmpMeta, sidecarJson, ct);
+            try
+            {
+                File.Move(stagedDataPath, dataPath, overwrite: true);
+                File.Move(tmpMeta, metaPath, overwrite: true);
+            }
+            catch
+            {
+                if (File.Exists(tmpMeta)) File.Delete(tmpMeta);
+                throw;
+            }
         }
-        catch
+        finally
         {
-            if (File.Exists(tmpMeta)) File.Delete(tmpMeta);
-            throw;
+            _writeLock.Release();
         }
     }
 

@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using Microsoft.Net.Http.Headers;
 using NeoIPC.Reporting.Authorization;
 using NeoIPC.Reporting.Resources;
 
@@ -94,28 +95,34 @@ class PartnerReport
         HttpContext httpContext,
         CancellationToken cancellationToken)
     {
+        var (sessionId, accept, acceptLang) = ReportRequestBase.ReadHeaders(httpRequest);
+        if (sessionId is null)
+            return ReportRequestBase.MissingSession();
+
         if (!ConfidenceIntervalConverter.TryParse(confidenceIntervals, out var confidenceIntervalMode))
             return ProblemDetailsHelper.BadRequest(
                 ProblemCodes.InvalidConfidenceIntervals,
                 "Invalid confidenceIntervals",
                 "The 'confidenceIntervals' parameter must be one of: all, rate, none.");
 
+        var apiParameters = BuildApiParameters(
+            sessionId, accept, acceptLang,
+            referenceDataFile, locale,
+            unitCodes, reportingPeriodFrom, reportingPeriodTo,
+            birthWeightFrom, birthWeightTo, gestationalAgeFrom, gestationalAgeTo,
+            includeNonCorePatients, includeTestData, sparseDataThreshold,
+            confidenceIntervalMode, includeIntroductionTexts, includeMethodsTexts,
+            includeOutlierInterpretation, includeValidationSummaryTable,
+            includeBirthWeightFigure, includeGestationalAgeFigure,
+            includeIncidenceDensityTable, includeDeviceAssociatedIncidenceDensityTable,
+            includeAgentPerInfectionRateTable, includeInfectiousAgentDetectionRateTable,
+            includeRiskDensityRateTable, includeAntibioticUtilisationTable,
+            includeSurgicalProcedureRateTable, includeResistantPathogenInfectionRateTable,
+            includeOrganismResistanceRateTable, includeAntibioticResistanceTestRateTable,
+            includeSecondaryBsiRateTable);
+
         return await Handle(
-            apiParameters: BuildApiParameters(
-                referenceDataFile, locale,
-                unitCodes, reportingPeriodFrom, reportingPeriodTo,
-                birthWeightFrom, birthWeightTo, gestationalAgeFrom, gestationalAgeTo,
-                includeNonCorePatients, includeTestData, sparseDataThreshold,
-                confidenceIntervalMode, includeIntroductionTexts, includeMethodsTexts,
-                includeOutlierInterpretation, includeValidationSummaryTable,
-                includeBirthWeightFigure, includeGestationalAgeFigure,
-                includeIncidenceDensityTable, includeDeviceAssociatedIncidenceDensityTable,
-                includeAgentPerInfectionRateTable, includeInfectiousAgentDetectionRateTable,
-                includeRiskDensityRateTable, includeAntibioticUtilisationTable,
-                includeSurgicalProcedureRateTable, includeResistantPathogenInfectionRateTable,
-                includeOrganismResistanceRateTable, includeAntibioticResistanceTestRateTable,
-                includeSecondaryBsiRateTable,
-                httpRequest),
+            apiParameters,
             partnerDataBody: null,
             fragmentMode ?? false,
             options, registry, referenceDataStorage, validationExceptionStorage, dhis2Endpoint,
@@ -163,6 +170,10 @@ class PartnerReport
         HttpContext httpContext,
         CancellationToken cancellationToken)
     {
+        var (sessionId, accept, acceptLang) = ReportRequestBase.ReadHeaders(httpRequest);
+        if (sessionId is null)
+            return ReportRequestBase.MissingSession();
+
         if (httpRequest.ContentLength is null or 0)
             return ProblemDetailsHelper.BadRequest(
                 ProblemCodes.MissingPartnerDataBody,
@@ -176,24 +187,26 @@ class PartnerReport
                 "Invalid confidenceIntervals",
                 "The 'confidenceIntervals' parameter must be one of: all, rate, none.");
 
+        var apiParameters = BuildApiParameters(
+            sessionId, accept, acceptLang,
+            referenceDataFile, locale,
+            unitCodes, reportingPeriodFrom: null, reportingPeriodTo: null,
+            birthWeightFrom: null, birthWeightTo: null,
+            gestationalAgeFrom: null, gestationalAgeTo: null,
+            includeNonCorePatients: null, includeTestData: null,
+            sparseDataThreshold, confidenceIntervalMode,
+            includeIntroductionTexts, includeMethodsTexts, includeOutlierInterpretation,
+            includeValidationSummaryTable,
+            includeBirthWeightFigure, includeGestationalAgeFigure,
+            includeIncidenceDensityTable, includeDeviceAssociatedIncidenceDensityTable,
+            includeAgentPerInfectionRateTable, includeInfectiousAgentDetectionRateTable,
+            includeRiskDensityRateTable, includeAntibioticUtilisationTable,
+            includeSurgicalProcedureRateTable, includeResistantPathogenInfectionRateTable,
+            includeOrganismResistanceRateTable, includeAntibioticResistanceTestRateTable,
+            includeSecondaryBsiRateTable);
+
         return await Handle(
-            apiParameters: BuildApiParameters(
-                referenceDataFile, locale,
-                unitCodes, reportingPeriodFrom: null, reportingPeriodTo: null,
-                birthWeightFrom: null, birthWeightTo: null,
-                gestationalAgeFrom: null, gestationalAgeTo: null,
-                includeNonCorePatients: null, includeTestData: null,
-                sparseDataThreshold, confidenceIntervalMode,
-                includeIntroductionTexts, includeMethodsTexts, includeOutlierInterpretation,
-                includeValidationSummaryTable,
-                includeBirthWeightFigure, includeGestationalAgeFigure,
-                includeIncidenceDensityTable, includeDeviceAssociatedIncidenceDensityTable,
-                includeAgentPerInfectionRateTable, includeInfectiousAgentDetectionRateTable,
-                includeRiskDensityRateTable, includeAntibioticUtilisationTable,
-                includeSurgicalProcedureRateTable, includeResistantPathogenInfectionRateTable,
-                includeOrganismResistanceRateTable, includeAntibioticResistanceTestRateTable,
-                includeSecondaryBsiRateTable,
-                httpRequest),
+            apiParameters,
             partnerDataBody: httpRequest.Body,
             fragmentMode ?? false,
             options, registry, referenceDataStorage, validationExceptionStorage, dhis2Endpoint,
@@ -201,6 +214,8 @@ class PartnerReport
     }
 
     static PartnerReportApiParameters BuildApiParameters(
+        string sessionId, ImmutableArray<MediaTypeHeaderValue> accept,
+        ImmutableArray<StringWithQualityHeaderValue> acceptLang,
         string? referenceDataFile, string? locale, string[] unitCodes,
         DateOnly? reportingPeriodFrom, DateOnly? reportingPeriodTo,
         ushort? birthWeightFrom, ushort? birthWeightTo,
@@ -215,10 +230,8 @@ class PartnerReport
         bool? includeRiskDensityRateTable, bool? includeAntibioticUtilisationTable,
         bool? includeSurgicalProcedureRateTable, bool? includeResistantPathogenInfectionRateTable,
         bool? includeOrganismResistanceRateTable, bool? includeAntibioticResistanceTestRateTable,
-        bool? includeSecondaryBsiRateTable,
-        HttpRequest httpRequest)
+        bool? includeSecondaryBsiRateTable)
     {
-        var (sessionId, accept, acceptLang) = ReportRequestBase.ReadHeaders(httpRequest);
         return new PartnerReportApiParameters
         {
             SessionId = sessionId,

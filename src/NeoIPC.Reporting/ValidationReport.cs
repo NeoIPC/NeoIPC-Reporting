@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -21,7 +22,11 @@ namespace NeoIPC.Reporting;
 /// tests' placeholder sessions. Every id in <c>rules</c> must be in the rule
 /// catalogue <c>GET /validation-report/rules</c> lists; an absent or empty
 /// <c>rules</c> applies every rule. The single admin-uploaded
-/// validation-exception file, if any, is folded in automatically.
+/// validation-exception file, if any, is applied unless the request switches
+/// it off (<c>applyValidationExceptions=false</c>), and the report states
+/// which with the day the file was uploaded. Switching it off, and the
+/// appendix of its unused records (<c>includeUnusedValidationExceptions</c>),
+/// need the F_NEOIPC_ADMIN authority.
 /// </remarks>
 class ValidationReport
 {
@@ -30,6 +35,8 @@ class ValidationReport
         [FromQuery] string[] departmentFilter,
         [FromQuery] int[] rules,
         [FromQuery] bool? includeTestData,
+        [FromQuery] bool? applyValidationExceptions,
+        [FromQuery] bool? includeUnusedValidationExceptions,
         // Nullable so it stays optional; see ReferenceReport.Get.
         [FromQuery] bool? fragmentMode,
         [FromServices] IOptions<ReportingOptions> options,
@@ -45,6 +52,8 @@ class ValidationReport
         CancellationToken cancellationToken)
     {
         var (sessionId, accept, acceptLang) = ReportRequestBase.ReadHeaders(httpRequest);
+        if (sessionId is null)
+            return ReportRequestBase.MissingSession();
         if (accept.IsDefaultOrEmpty)
             return Results.StatusCode(406);
 
@@ -82,8 +91,22 @@ class ValidationReport
             "Rendering the Validation Report requires the F_NEOIPC_REPORT authority.");
         if (forbidden is not null) return forbidden;
 
+        // A report without the stored exception list, or with the appendix
+        // naming the patients of its unused records, is an administrator's.
+        // The value decides, not its presence: the app sends every boolean on
+        // every request, the defaults included.
+        if (applyValidationExceptions == false || includeUnusedValidationExceptions == true)
+        {
+            var adminOnly = await NeoIpcAuthorization.RequireAsync(
+                authorizationService, httpContext.User, "NeoIpcAdmin",
+                "Rendering the Validation Report without the validation exceptions, or with the appendix "
+                + "of the unused ones, requires the F_NEOIPC_ADMIN authority.");
+            if (adminOnly is not null) return adminOnly;
+        }
+
         var apiParameters = ApiParameters(sessionId, accept, acceptLang,
-            locale, departmentFilter, rules, includeTestData);
+            locale, departmentFilter, rules, includeTestData,
+            applyValidationExceptions, includeUnusedValidationExceptions);
 
         var renderParameters = ResolveRenderParameters(
             apiParameters, validationExceptionStorage, dhis2Endpoint);
@@ -124,7 +147,9 @@ class ValidationReport
         string? locale,
         string[] departmentFilter,
         int[] rules,
-        bool? includeTestData) => new()
+        bool? includeTestData,
+        bool? applyValidationExceptions,
+        bool? includeUnusedValidationExceptions) => new()
     {
         SessionId = sessionId,
         AcceptHeaders = accept,
@@ -133,6 +158,8 @@ class ValidationReport
         DepartmentFilter = departmentFilter.Length > 0 ? departmentFilter : null,
         Rules = rules.Length > 0 ? [.. rules.Distinct().Order()] : null,
         IncludeTestData = includeTestData,
+        ApplyValidationExceptions = applyValidationExceptions,
+        IncludeUnusedValidationExceptions = includeUnusedValidationExceptions,
     };
 
     internal static ValidationReportRenderParameters ResolveRenderParameters(
@@ -155,9 +182,19 @@ class ValidationReport
         };
 
         // The validation-exception file is a single admin-managed resource,
-        // auto-applied to every render when present.
-        if (validationExceptionStorage.Exists())
-            rp = rp with { ValidationExceptionFile = validationExceptionStorage.DataPath() };
+        // applied when present unless the request switched it off. The report
+        // states which, so it learns of a stored file through the day it was
+        // uploaded whether or not it receives the file.
+        if (validationExceptionStorage.ReadMetadata() is { } metadata)
+        {
+            rp = rp with
+            {
+                ValidationExceptionFileUploadedAt = metadata.CreatedAt.UtcDateTime.ToString(
+                    "yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture),
+            };
+            if (apiParameters.ApplyValidationExceptions != false)
+                rp = rp with { ValidationExceptionFile = validationExceptionStorage.DataPath() };
+        }
 
         return rp;
     }

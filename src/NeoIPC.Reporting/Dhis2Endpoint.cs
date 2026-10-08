@@ -21,7 +21,13 @@ namespace NeoIPC.Reporting;
 /// place to it; <paramref name="BaseUri"/> without its query and fragment
 /// when none is configured.
 /// </param>
-public sealed partial record Dhis2Endpoint(string Scheme, string Host, int Port, string Path, Uri BaseUri, Uri PublicBaseUri)
+/// <param name="PublicBaseUriConfigured">
+/// Whether <paramref name="PublicBaseUri"/> is the configured
+/// <see cref="ReportingOptions.Dhis2PublicBaseUrl"/> rather than the
+/// fallback to <paramref name="BaseUri"/>.
+/// </param>
+public sealed partial record Dhis2Endpoint(
+    string Scheme, string Host, int Port, string Path, Uri BaseUri, Uri PublicBaseUri, bool PublicBaseUriConfigured)
 {
     /// <summary>
     /// API mount path under <see cref="Path"/> (the DHIS2 context path).
@@ -81,10 +87,11 @@ public sealed partial record Dhis2Endpoint(string Scheme, string Host, int Port,
                 "Reporting:Dhis2BaseUrl resolves to a loopback or unspecified address; " +
                 "configure the in-cluster DHIS2 service hostname.");
 
+        var configured = !string.IsNullOrWhiteSpace(publicBaseUrl);
         var publicUri = string.IsNullOrWhiteSpace(publicBaseUrl)
             ? FallbackPublicBaseUri(uri)
             : ParsePublicBaseUrl(publicBaseUrl);
-        return new Dhis2Endpoint(uri.Scheme, uri.Host, uri.Port, uri.AbsolutePath, uri, publicUri);
+        return new Dhis2Endpoint(uri.Scheme, uri.Host, uri.Port, uri.AbsolutePath, uri, publicUri, configured);
     }
 
     /// <summary>

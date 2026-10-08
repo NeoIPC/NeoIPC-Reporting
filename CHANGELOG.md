@@ -15,6 +15,41 @@ product's own changelog, and here only as the pin that carries it.
 
 ## [Unreleased]
 
+### Added
+
+- `GET /validation-report` takes `applyValidationExceptions`, which renders the report without the
+  stored validation-exception file when false, and `includeUnusedValidationExceptions`, which adds
+  the report's appendix of the file's records for the departments in scope that match no record or
+  exempt nothing. Both need the F_NEOIPC_ADMIN authority, judged by value, since the app sends every
+  boolean on every request; a caller without it is refused with `insufficient-authority`. The report
+  receives the day the stored file was uploaded (`validationExceptionFileUploadedAt`), which its
+  header states, whether or not the file is applied.
+- `GET /admin/dhis2-public-base-url` returns the address the reports' links to DHIS2 take
+  (`publicBaseUrl`) and whether it is the configured `Reporting:Dhis2PublicBaseUrl` (`configured`),
+  and the service logs that address when it starts. It reads the setting only then, so after a
+  change both show whether the running container took the new value.
+
+### Changed
+
+- `PUT /admin/validation-exceptions` checks an upload with neoipcr's reader before it stores it, and
+  refuses a file the reader refuses, such as one that is not UTF-8 text, or one whose records do not
+  name their department (`DEPARTMENT_CODE`), with `invalid-validation-exceptions` and the reason; the
+  stored file stays as it was. A check that fails in itself is a 500 and logged, never a refusal.
+  The upload has a request timeout of two minutes.
+- `GET /admin/validation-exceptions` reports a stored file whose metadata sidecar cannot be read, from
+  the data file's size and the time it was last written, since the renders apply such a file all the
+  same; it answered 404.
+
+### Fixed
+
+- A report request without a DHIS2 session cookie, or with an empty one, is refused with 401 and
+  `missing-dhis2-session` before the request's other checks, rather than with an uncoded 500, or a
+  403 for an empty cookie. Every 401 carries the challenge `WWW-Authenticate: Dhis2Session`, which
+  RFC 9110 requires.
+- An upload whose body fails mid-copy, as when the client aborts or the request times out, leaves no
+  partial file behind, and two uploads stored at once can no longer pair one's file with the other's
+  metadata.
+
 ## [0.4.0] - 2026-10-01
 
 - The image bakes the reports at `reports-v0.2.0-alpha` and neoipcr at `v0.0.0.9007`, in place of

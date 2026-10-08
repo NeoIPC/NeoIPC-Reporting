@@ -1,5 +1,7 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Text;
+using System.Text.Json;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
 using NUnit.Framework;
@@ -76,9 +78,9 @@ public class NegativePathTests
         var req = new HttpRequestMessage(HttpMethod.Get, path);
         // Set the common headers + cookie most handlers expect; individual
         // tests override these to exercise the missing-header paths.
-        // ReportRequestBase.ReadHeaders reads JSESSIONID upfront and
-        // throws when absent, so even pre-render negative paths need a
-        // placeholder cookie. The auth handler will fail to validate this
+        // A report handler refuses a request without JSESSIONID with 401
+        // before any check of its own, so even pre-render negative paths
+        // need a placeholder cookie. The auth handler will fail to validate this
         // session (no DHIS2 to call) — anywhere claims are checked the
         // principal will be unauthenticated, which is what these tests
         // want for the 403 / 401 paths.
@@ -104,6 +106,49 @@ public class NegativePathTests
         req.Headers.Add("Accept", "application/pdf");
         req.Headers.Add("Accept-Language", "en");
         return req;
+    }
+
+    // The session is judged before the request's shape: an invalid
+    // confidenceIntervals, or a POST without its body, is still a 401. An
+    // empty JSESSIONID is no session, as the authentication handler reads it.
+    [TestCase("GET", "/validation-report?rules=3", null)]
+    [TestCase("GET", "/partner-report?unitCodes=AT_TEST_TEST", null)]
+    [TestCase("GET", "/partner-report?unitCodes=AT_TEST_TEST&confidenceIntervals=bogus", null)]
+    [TestCase("POST", "/partner-report?unitCodes=AT_TEST_TEST", null)]
+    [TestCase("GET", "/reference-report?referenceDataId=00000000000000000000000000000000", null)]
+    [TestCase("GET", "/validation-report?rules=3", "JSESSIONID=")]
+    public async Task AReportRequestWithoutASession_Returns401WithItsCodeAndAChallenge(
+        string method, string path, string? cookie)
+    {
+        var req = new HttpRequestMessage(new HttpMethod(method), path);
+        if (cookie is not null)
+            req.Headers.Add("Cookie", cookie);
+        req.Headers.Add("Accept", "application/pdf");
+        req.Headers.Add("Accept-Language", "en");
+        var response = await _http!.SendAsync(req);
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Multiple(() =>
+        {
+            Assert.That(problem.GetProperty("code").GetString(), Is.EqualTo("missing-dhis2-session"));
+            Assert.That(response.Headers.WwwAuthenticate.ToString(), Is.EqualTo("Dhis2Session"));
+        });
+    }
+
+    [Test]
+    public async Task AnAdminRequestWithoutASession_Returns401WithAChallenge()
+    {
+        // Anonymous, the request fails the group's policy, and the
+        // authentication handler answers with its challenge.
+        var req = new HttpRequestMessage(HttpMethod.Get, "/admin/reference-data");
+        var response = await _http!.SendAsync(req);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
+            Assert.That(response.Headers.WwwAuthenticate.ToString(), Is.EqualTo("Dhis2Session"));
+        });
     }
 
     [Test]
