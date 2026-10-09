@@ -15,6 +15,16 @@ product's own changelog, and here only as the pin that carries it.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-09
+
+- The image bakes the reports at `reports-v0.3.0-alpha` and neoipcr at `v0.0.0.9008`, in place of
+  `reports-v0.2.0-alpha` and `v0.0.0.9007`. What those carry is in their own changelogs. They bring
+  the Validation Report's account of the stored validation-exception file, with the appendix and the
+  switch the two parameters below drive, and neoipcr's warning rules, whose findings no longer keep a
+  patient out of the Partner and Reference Reports, and its new rule 62, whose findings do. Both can
+  change those reports' counts, and the stored file's records for rule 54 need review, as neoipcr's
+  `NEWS.md` sets out.
+
 ### Added
 
 - `GET /validation-report` takes `applyValidationExceptions`, which renders the report without the
@@ -235,7 +245,8 @@ product's own changelog, and here only as the pin that carries it.
   case-sensitively as an enum whose names are capitalized; it now accepts the lowercase tokens the
   app sends.
 
-[Unreleased]: https://github.com/NeoIPC/NeoIPC-Reporting/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/NeoIPC/NeoIPC-Reporting/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/NeoIPC/NeoIPC-Reporting/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/NeoIPC/NeoIPC-Reporting/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/NeoIPC/NeoIPC-Reporting/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/NeoIPC/NeoIPC-Reporting/compare/v0.1.4...v0.2.0
