@@ -367,15 +367,36 @@ USER $APP_UID
 # compile logs "luamml has been disabled"); colorprofiles the ICC output intent PDF/A needs. ALL must be
 # present at build time — the runtime image's minimal Perl (perl-base, no File::Find) cannot run tlmgr, so
 # there is deliberately no render-time auto-install fallback.
+#
+# Nor does `tlmgr install` fail when installing a package does, as when its download breaks off: its
+# `action_install` (tlmgr.pl, texlive.infra r79982) logs the failure to tlmgr.log and leaves its own return
+# value at success, so the step would pass and ship an image whose renders fail. The build therefore walks the
+# dependency closure of the requested packages through the installed package database and stops at the first
+# round that names a package not installed: `tlmgr info --only-installed` warns "package <name> not locally!"
+# for each one and exits 1. A binary dependency, `<name>.ARCH`, is installed as `<name>.x86_64-linux`, and a
+# Windows-only one, `<name>.windows`, not at all.
 RUN tar xf /tmp/TinyTeX.tar.xz -C $HOME && \
-    ~/.TinyTeX/bin/x86_64-linux/tlmgr option repository https://texlive.info/tlnet-archive/${TINYTEX_TLNET_SNAPSHOT}/tlnet && \
-    ~/.TinyTeX/bin/x86_64-linux/tlmgr install \
-        anyfontsize babel babel-english babel-estonian babel-german \
+    tlmgr="$HOME/.TinyTeX/bin/x86_64-linux/tlmgr" && \
+    packages='anyfontsize babel babel-english babel-estonian babel-german \
         babel-greek babel-italian babel-spanish babel-turkish caption \
         colorprofiles colortbl fontawesome5 footnotehyper koma-script latex-lab \
         luamml luatexbase microtype multirow parskip pdfcol pdfmanagement placeins \
         selnolig tagpdf tcolorbox tikzfill upquote wrapfig \
-        xurl
+        xurl' && \
+    "$tlmgr" option repository https://texlive.info/tlnet-archive/${TINYTEX_TLNET_SNAPSHOT}/tlnet && \
+    "$tlmgr" install $packages && \
+    todo=$packages && seen=" $packages " && \
+    while [ -n "$todo" ]; do \
+        deps=$("$tlmgr" info --only-installed --data depends $todo) || { \
+            echo "tlmgr could not confirm the installed TeX packages; its messages above say why." >&2; exit 1; }; \
+        todo=; \
+        for dep in $(printf '%s\n' "$deps" | tr ':' ' '); do \
+            case $dep in *.windows) continue ;; *.ARCH) dep="${dep%.ARCH}.x86_64-linux" ;; esac; \
+            case $seen in *" $dep "*) continue ;; esac; \
+            seen="$seen$dep " && todo="$todo $dep"; \
+        done; \
+    done && \
+    echo "All $(echo $seen | wc -w) TeX packages, the requested ones and their dependencies, are installed."
 
 # ----------------------------------------------------------------------------
 # Stage: Quarto (only the linux-amd64 binaries we need).

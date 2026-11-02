@@ -15,6 +15,12 @@ product's own changelog, and here only as the pin that carries it.
 
 ## [Unreleased]
 
+### Fixed
+
+- The image build stops, naming the package, when a TeX package the reports need, or one of its
+  dependencies, is not installed. `tlmgr install` reports success when installing a package fails, as
+  when its download breaks off, so such a build passed and its image rendered no PDF.
+
 ## [0.5.0] - 2026-10-09
 
 - The image bakes the reports at `reports-v0.3.0-alpha` and neoipcr at `v0.0.0.9008`, in place of
