@@ -367,15 +367,22 @@ USER $APP_UID
 # compile logs "luamml has been disabled"); colorprofiles the ICC output intent PDF/A needs. ALL must be
 # present at build time — the runtime image's minimal Perl (perl-base, no File::Find) cannot run tlmgr, so
 # there is deliberately no render-time auto-install fallback.
+#
+# Nor does `tlmgr install` fail when installing a package does, so check-tex-packages.sh, whose comment says why,
+# then walks the requested packages' dependency closure and fails the build on a package missing. The Dockerfile
+# sanity build of the pull-request workflow proves it fails, on this stage, once a dependency is removed.
+COPY --chmod=755 src/NeoIPC.Reporting/check-tex-packages.sh /usr/local/bin/check-tex-packages
 RUN tar xf /tmp/TinyTeX.tar.xz -C $HOME && \
-    ~/.TinyTeX/bin/x86_64-linux/tlmgr option repository https://texlive.info/tlnet-archive/${TINYTEX_TLNET_SNAPSHOT}/tlnet && \
-    ~/.TinyTeX/bin/x86_64-linux/tlmgr install \
-        anyfontsize babel babel-english babel-estonian babel-german \
+    tlmgr="$HOME/.TinyTeX/bin/x86_64-linux/tlmgr" && \
+    packages='anyfontsize babel babel-english babel-estonian babel-german \
         babel-greek babel-italian babel-spanish babel-turkish caption \
         colorprofiles colortbl fontawesome5 footnotehyper koma-script latex-lab \
         luamml luatexbase microtype multirow parskip pdfcol pdfmanagement placeins \
         selnolig tagpdf tcolorbox tikzfill upquote wrapfig \
-        xurl
+        xurl' && \
+    "$tlmgr" option repository https://texlive.info/tlnet-archive/${TINYTEX_TLNET_SNAPSHOT}/tlnet && \
+    "$tlmgr" install $packages && \
+    check-tex-packages "$tlmgr" $packages
 
 # ----------------------------------------------------------------------------
 # Stage: Quarto (only the linux-amd64 binaries we need).

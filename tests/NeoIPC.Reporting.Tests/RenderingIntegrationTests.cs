@@ -109,8 +109,15 @@ public class RenderingIntegrationTests
         request.Headers.Add("Accept-Language", "en");
 
         using var resp = await client.SendAsync(request);
-        Assert.That(resp.StatusCode, Is.EqualTo(HttpStatusCode.OK),
-            "the online Partner Report must render for the seeded department");
+        if (resp.StatusCode != HttpStatusCode.OK)
+        {
+            // In a development deployment, as the integration stack is one, a failed render answers with problem
+            // details whose quartoLog holds Quarto's records, the LaTeX or R error near their end; elsewhere the body
+            // is empty. Its tail puts the cause into the test's own failure.
+            var body = await resp.Content.ReadAsStringAsync();
+            var tail = body.Length > 4000 ? "…" + body[^4000..] : body;
+            Assert.Fail($"the online Partner Report must render for the seeded department; the service answered {(int)resp.StatusCode}: {tail}");
+        }
 
         var bytes = await resp.Content.ReadAsByteArrayAsync();
         Assert.That(bytes.Length, Is.GreaterThan(1000), "the PDF must not be empty");
