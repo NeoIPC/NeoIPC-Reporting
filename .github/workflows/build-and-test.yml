@@ -202,12 +202,31 @@ jobs:
           -t neoipc-reporting:build
           .
       - name: Build tinytex-builder stage
+        # --load hands the stage's image to the next step; buildx's docker-container driver otherwise keeps it in
+        # its build cache only.
         run: >
           docker build
           -f src/NeoIPC.Reporting/Dockerfile
           --target tinytex-builder
+          --load
           -t neoipc-reporting:tinytex-builder
           .
+      - name: Prove the TeX package check fails on a missing dependency
+        # The stage built, so the check passed on a complete installation. On that installation it must pass for
+        # tcolorbox, then fail, naming the package, once trimspaces is removed, which tcolorbox needs through
+        # environ: a check that always passes, or always fails, fails this step. trimspaces is a plain LaTeX
+        # package, so its removal rebuilds no format.
+        run: |
+          docker run --rm neoipc-reporting:tinytex-builder sh -c '
+            tlmgr="$HOME/.TinyTeX/bin/x86_64-linux/tlmgr"
+            check-tex-packages "$tlmgr" tcolorbox || exit 1
+            "$tlmgr" remove --force trimspaces > /dev/null || exit 1
+            if check-tex-packages "$tlmgr" tcolorbox 2> /tmp/check.err; then
+              echo "The check passed although trimspaces is missing." >&2
+              exit 1
+            fi
+            cat /tmp/check.err >&2
+            grep -q "package trimspaces not locally" /tmp/check.err'
       - name: Build quarto-downloader stage
         run: >
           docker build

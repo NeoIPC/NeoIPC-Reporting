@@ -368,13 +368,10 @@ USER $APP_UID
 # present at build time — the runtime image's minimal Perl (perl-base, no File::Find) cannot run tlmgr, so
 # there is deliberately no render-time auto-install fallback.
 #
-# Nor does `tlmgr install` fail when installing a package does, as when its download breaks off: its
-# `action_install` (tlmgr.pl, texlive.infra r79982) logs the failure to tlmgr.log and leaves its own return
-# value at success, so the step would pass and ship an image whose renders fail. The build therefore walks the
-# dependency closure of the requested packages through the installed package database and stops at the first
-# round that names a package not installed: `tlmgr info --only-installed` warns "package <name> not locally!"
-# for each one and exits 1. A binary dependency, `<name>.ARCH`, is installed as `<name>.x86_64-linux`, and a
-# Windows-only one, `<name>.windows`, not at all.
+# Nor does `tlmgr install` fail when installing a package does, so check-tex-packages.sh, whose comment says why,
+# then walks the requested packages' dependency closure and fails the build on a package missing. The Dockerfile
+# sanity build of the pull-request workflow proves it fails, on this stage, once a dependency is removed.
+COPY --chmod=755 src/NeoIPC.Reporting/check-tex-packages.sh /usr/local/bin/check-tex-packages
 RUN tar xf /tmp/TinyTeX.tar.xz -C $HOME && \
     tlmgr="$HOME/.TinyTeX/bin/x86_64-linux/tlmgr" && \
     packages='anyfontsize babel babel-english babel-estonian babel-german \
@@ -385,18 +382,7 @@ RUN tar xf /tmp/TinyTeX.tar.xz -C $HOME && \
         xurl' && \
     "$tlmgr" option repository https://texlive.info/tlnet-archive/${TINYTEX_TLNET_SNAPSHOT}/tlnet && \
     "$tlmgr" install $packages && \
-    todo=$packages && seen=" $packages " && \
-    while [ -n "$todo" ]; do \
-        deps=$("$tlmgr" info --only-installed --data depends $todo) || { \
-            echo "tlmgr could not confirm the installed TeX packages; its messages above say why." >&2; exit 1; }; \
-        todo=; \
-        for dep in $(printf '%s\n' "$deps" | tr ':' ' '); do \
-            case $dep in *.windows) continue ;; *.ARCH) dep="${dep%.ARCH}.x86_64-linux" ;; esac; \
-            case $seen in *" $dep "*) continue ;; esac; \
-            seen="$seen$dep " && todo="$todo $dep"; \
-        done; \
-    done && \
-    echo "All $(echo $seen | wc -w) TeX packages, the requested ones and their dependencies, are installed."
+    check-tex-packages "$tlmgr" $packages
 
 # ----------------------------------------------------------------------------
 # Stage: Quarto (only the linux-amd64 binaries we need).
