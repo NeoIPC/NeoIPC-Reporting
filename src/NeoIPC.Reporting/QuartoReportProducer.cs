@@ -336,9 +336,9 @@ abstract class QuartoReportProducer : ExternalProcessReportProducer
             yield return _quartoLogFilePath;
 
             yield return "--log-level";
-            // Floored at info: Quarto re-logs every Pandoc line as an INFO
-            // record, so a coarser level would drop Pandoc warnings/errors
-            // before they reach the log file (see ReportLogging / the drain).
+            // Floored at info: Quarto re-logs Pandoc's stderr as INFO records,
+            // so a coarser level would drop Pandoc's warnings before they
+            // reach the log file (see ReportLogging / the drain).
             yield return ReportLogging.ToQuartoLogLevel(effectiveLevel);
 
             yield return "--log-format";

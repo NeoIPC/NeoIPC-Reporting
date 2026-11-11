@@ -15,11 +15,46 @@ product's own changelog, and here only as the pin that carries it.
 
 ## [Unreleased]
 
+### Changed
+
+- The image runs Quarto 1.11.9 in place of 1.10.18; both bundle Pandoc 3.10. Three of the changes in
+  [Quarto's changelog](https://github.com/quarto-dev/quarto-cli/blob/v1.11.9/news/changelog-1.11.md)
+  bear on the reports. Quarto's LaTeX template defines `\komascript_documentmetadata_test:` when
+  `pdf-standard` is set, without which KOMA-Script 3.49.3 aborts on `\DocumentMetadata` in its
+  document classes ([quarto-cli issue 15143](https://github.com/quarto-dev/quarto-cli/issues/15143)):
+  the reports use `scrartcl` with `pdf-standard: [a-4]`, which Quarto writes as `\DocumentMetadata`, so
+  under Quarto 1.10.18 every PDF render would fail once the image's TeX Live snapshot, which carries
+  KOMA-Script 3.49.2, moved past that release. In HTML, an external link that opens in a new tab, as
+  the reports' `link-external-newwindow: true` makes every external link do, carries a description
+  for screen readers, "(opens in a new tab)"
+  ([quarto-cli pull request 9469](https://github.com/quarto-dev/quarto-cli/pull/9469)); Quarto
+  has it in English only, so a report's other editions announce it in English unless the report
+  supplies `link-external-newwindow-label` in their languages. A document's front matter no longer
+  replaces what its project, its directories, and its `metadata-files` set for the same key before
+  Pandoc runs: a single value in the front matter still wins, but lists are combined and maps merged
+  ([quarto-cli issues 9864](https://github.com/quarto-dev/quarto-cli/issues/9864) and
+  [11139](https://github.com/quarto-dev/quarto-cli/issues/11139)). No report's front matter sets a
+  list or a map that another of these sources sets, so this changes no report.
+- A failed Pandoc conversion is logged on the `.Pandoc` channel at `Error`. Quarto 1.11 logs
+  Pandoc's error output as an ERROR record, followed by `Pandoc conversion failed (exit code N)`,
+  where 1.10 left that output in the INFO records it streams while Pandoc runs and logged only a
+  warning that rendering had failed
+  ([quarto-cli pull request 14897](https://github.com/quarto-dev/quarto-cli/pull/14897)). It still
+  streams those records, which repeat the error output cut at arbitrary points. Where they repeat it
+  exactly, the service keeps them at `Trace`, so the failure is reported once; where they do not, as
+  when Quarto's log leaves out a chunk, it logs them as before, so nothing is lost.
+
 ### Fixed
 
 - The image build stops, naming the package, when a TeX package the reports need, or one of its
   dependencies, is not installed. `tlmgr install` reports success when installing a package fails, as
   when its download breaks off, so such a build passed and its image rendered no PDF.
+
+### Security
+
+- Quarto 1.11.9 bundles Deno 2.9.8, which rejects certificates from the compromised eMudhra and
+  emSign certificate authorities in the HTTPS requests Quarto's commands make
+  ([quarto-cli issue 15152](https://github.com/quarto-dev/quarto-cli/issues/15152)).
 
 ## [0.5.0] - 2026-10-09
 

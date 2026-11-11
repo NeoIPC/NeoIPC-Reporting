@@ -73,15 +73,15 @@ static class ReportLogging
 
     /// <summary>
     /// Quarto's <c>--log-level</c> for the render, <b>floored at
-    /// <c>info</c></b> regardless of the service level. Quarto re-logs every
-    /// Pandoc line — whatever its real severity — as an <c>INFO</c> record
-    /// (it captures Pandoc's stderr and re-emits it through its own
-    /// <c>info()</c>), so a coarser level would drop Pandoc warnings and
-    /// errors before they are ever written to the log file. Keeping the file
-    /// at <c>info</c> guarantees the Pandoc lines are captured; the drain
-    /// then re-imposes the service level per source (so Quarto's own INFO
-    /// chatter is suppressed when the service runs quiet) and recovers
-    /// Pandoc's true severity from its <c>[LEVEL]</c> prefix.
+    /// <c>info</c></b> regardless of the service level. Quarto re-logs
+    /// Pandoc's stderr — whatever its real severity — as <c>INFO</c> records
+    /// (it captures the stderr and re-emits it through its own
+    /// <c>info()</c>), so a coarser level would drop Pandoc's warnings before
+    /// they are ever written to the log file. Keeping the file at
+    /// <c>info</c> guarantees they are captured; the drain then re-imposes
+    /// the service level per source (so Quarto's own INFO chatter is
+    /// suppressed when the service runs quiet) and recovers Pandoc's true
+    /// severity from its <c>[LEVEL]</c> prefix.
     /// </summary>
     public static string ToQuartoLogLevel(LogLevel level) => level switch
     {
