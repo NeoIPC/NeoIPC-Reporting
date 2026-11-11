@@ -24,7 +24,7 @@ ARG DOTNET_SDK_IMAGE=mcr.microsoft.com/dotnet/sdk:10.0-resolute@sha256:17d5b9370
 ARG ALPINE_GIT_IMAGE=alpine/git:v2.54.0@sha256:6f3b5029566da8e90b24945933dcd806be866b64b1e706f51828bf84faccf21b
 ARG TINYTEX_VERSION=2026.09
 ARG TINYTEX_TLNET_SNAPSHOT=2026/08/31
-ARG QUARTO_VERSION=1.10.18
+ARG QUARTO_VERSION=1.11.9
 # EB Garamond from the EBGaramond12 repository (github.com/octaviopardo/EBGaramond12, SIL OFL
 # 1.1), a commit of that repository: it has no releases.
 ARG EBGARAMOND_COMMIT=106a4a6d377987459ae5e68673a4570f13b957fb
@@ -389,7 +389,7 @@ RUN tar xf /tmp/TinyTeX.tar.xz -C $HOME && \
 # ----------------------------------------------------------------------------
 FROM ${DOTNET_ASPNET_IMAGE} AS quarto-downloader
 ARG QUARTO_VERSION
-ADD --checksum=sha256:afad071b5bd22c02f2d300695743189d3650e0537a53073e654b630cff2b0c73 \
+ADD --checksum=sha256:9d037baa3b38ffac7217edca1d2e53760b0fab4d5749220740a32056e03a1530 \
     https://github.com/quarto-dev/quarto-cli/releases/download/v${QUARTO_VERSION}/quarto-${QUARTO_VERSION}-linux-amd64.tar.gz \
     /tmp/quarto.tar.gz
 # Drop only the tools we don't use. Keep tools/x86_64/deno — it is Quarto's runtime (the `quarto`

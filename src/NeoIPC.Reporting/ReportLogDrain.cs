@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
@@ -77,8 +78,9 @@ static partial class ReportLogDrain
     /// Replay Quarto's json-stream log into per-source sub-loggers, one entry per
     /// record: Quarto's own records to <c>.Quarto</c>, and the child-engine output
     /// Quarto flattens onto its stream recovered to <c>.Pandoc</c> (by its
-    /// <c>[LEVEL]</c> prefix), <c>.LaTeX</c> (the writeError block, at Error), and
-    /// <c>.R.report</c> (red-colourised knitr errors on a failed render, at Error).
+    /// <c>[LEVEL]</c> prefix, and a failed conversion at Error), <c>.LaTeX</c>
+    /// (the writeError block, at Error), and <c>.R.report</c> (red-colourized
+    /// knitr errors on a failed render, at Error).
     /// Returns the raw records (for the failure-path payload) and whether the
     /// well-known #13394 success case was seen. Per-source level filtering is each
     /// sub-logger's own <see cref="ILogger.IsEnabled"/>.
@@ -92,17 +94,9 @@ static partial class ReportLogDrain
         if (!File.Exists(quartoLogFilePath))
             return new QuartoDrainResult(issue13394Success, rawRecords);
 
-        var quartoLogger = loggerFactory.CreateLogger($"{renderCategory}.Quarto");
-        var pandocLogger = loggerFactory.CreateLogger($"{renderCategory}.Pandoc");
-        var latexLogger = loggerFactory.CreateLogger($"{renderCategory}.LaTeX");
-        var rLogger = loggerFactory.CreateLogger($"{renderCategory}.R.report");
-
-        // True while inside a Quarto writeError block — an `error("compilation
-        // failed- …")` record and the `info(detail)` / `info("see …log")` records
-        // that follow it — so the extracted detail is elevated to .LaTeX whatever
-        // its content.
-        var latexErrorActive = false;
-
+        // Every record is read before any is emitted: a failed Pandoc conversion is
+        // recognized only by the records that follow Pandoc's output.
+        var records = new List<QuartoRecord>();
         await foreach (var line in File.ReadLinesAsync(quartoLogFilePath, cancellationToken))
         {
             if (string.IsNullOrWhiteSpace(line))
@@ -115,12 +109,31 @@ static partial class ReportLogDrain
                 continue;
             rawRecords.Add(node); // raw, for the failure ProblemDetails payload
 
-            if (node is not JsonObject record)
-                continue;
-            var message = ValueOf(record, "msg");
+            if (node is JsonObject record && ValueOf(record, "msg") is { } msg)
+                records.Add(new QuartoRecord(msg, ValueOf(record, "levelName")));
+        }
+
+        // Gated like the LaTeX anchor below: a successful render has no failed conversion.
+        var pandocFailureParts = exitCode != 0
+            ? MarkPandocFailures(records)
+            : new PandocFailurePart[records.Count];
+
+        var quartoLogger = loggerFactory.CreateLogger($"{renderCategory}.Quarto");
+        var pandocLogger = loggerFactory.CreateLogger($"{renderCategory}.Pandoc");
+        var latexLogger = loggerFactory.CreateLogger($"{renderCategory}.LaTeX");
+        var rLogger = loggerFactory.CreateLogger($"{renderCategory}.R.report");
+
+        // True while inside a Quarto writeError block — an `error("compilation
+        // failed- …")` record and the `info(detail)` / `info("see …log")` records
+        // that follow it — so the extracted detail is elevated to .LaTeX whatever
+        // its content.
+        var latexErrorActive = false;
+
+        for (var i = 0; i < records.Count; i++)
+        {
+            var (message, levelName) = records[i];
             if (string.IsNullOrWhiteSpace(message))
                 continue;
-            var levelName = ValueOf(record, "levelName");
 
             // Detection runs on the raw message (ANSI intact — the R red gate
             // needs it); the emitted text has the SGR colour codes stripped so
@@ -139,6 +152,23 @@ static partial class ReportLogDrain
                     display);
                 issue13394Success = true;
                 continue;
+            }
+
+            // A failed Pandoc conversion (see MarkPandocFailures) is reported by the
+            // ERROR record of Pandoc's stderr and Quarto's closing record, both on
+            // .Pandoc at Error; a [WARNING] line in that stderr goes with it, as a
+            // batched record below takes the level of its most severe line. The INFO
+            // records that streamed the same stderr are a copy cut at arbitrary
+            // points, a [LEVEL] prefix included, so they go to Trace rather than
+            // reporting the failure a second time.
+            switch (pandocFailureParts[i])
+            {
+                case PandocFailurePart.Report:
+                    pandocLogger.LogError("{Message}", display);
+                    continue;
+                case PandocFailurePart.LiveCopy:
+                    pandocLogger.LogTrace("{Message}", display);
+                    continue;
             }
 
             // Structural LaTeX recovery. Quarto's writeError emits
@@ -177,8 +207,11 @@ static partial class ReportLogDrain
             // carries the truth. Quarto batches stderr per chunk, so one INFO
             // record can carry several [LEVEL]-prefixed lines — route the whole
             // record to the Pandoc channel at the MOST severe of them, so an
-            // embedded [ERROR] is never downgraded by a leading [WARNING]. Pandoc
-            // severity is explicit, so this recovery is not exitCode-gated.
+            // embedded [ERROR] is never downgraded by a leading [WARNING]. A chunk
+            // ends wherever a read from Pandoc's pipe did, inside a prefix too ("["
+            // and "WARNING] …" as two records), and a prefix so split is currently
+            // not recovered. Pandoc severity is explicit, so this recovery is not
+            // exitCode-gated.
             if (levelName == "INFO")
             {
                 var pandocMatches = PandocLevelPrefixRegex().Matches(message);
@@ -202,16 +235,16 @@ static partial class ReportLogDrain
             // record carrying an R error signal is the failure. The check is
             // level-AGNOSTIC on purpose, because the level depends on how Quarto
             // runs knitr (callR in quarto-dev/quarto-cli's src/execute/rmd.ts,
-            // v1.10.18): with the render's own quiet flag set, a failed run's
+            // v1.11.9): with the render's own quiet flag set, a failed run's
             // output arrives as one ERROR record; QuartoReportProducer's --quiet is
-            // a log option that leaves that flag unset, so the output streams as
-            // INFO records. R-exclusive terminal signals ("Execution
-            // halted", "Quitting from", a native "caught segfault" / "R is aborting
-            // now" crash) match even without colour, so they survive NO_COLOR and
-            // do not depend on the colour Quarto applies; the colour gate covers
-            // the otherwise-ambiguous "Error:" / "! ". The structured
-            // DHIS2/neoipcr trace arrives separately via the layout_json file,
-            // drained with its true namespace by DrainRLogAsync.
+            // a log option (logOptions in src/core/log.ts) that leaves that flag
+            // unset, so the output streams as INFO records. R-exclusive terminal
+            // signals ("Execution halted", "Quitting from", a native "caught
+            // segfault" / "R is aborting now" crash) match even without colour, so
+            // they survive NO_COLOR and do not depend on the colour Quarto applies;
+            // the colour gate covers the otherwise-ambiguous "Error:" / "! ". The
+            // structured DHIS2/neoipcr trace arrives separately via the layout_json
+            // file, drained with its true namespace by DrainRLogAsync.
             if (exitCode != 0 &&
                 (RExclusiveFatalRegex().IsMatch(message)
                  || (message.Contains(KnitrColorCode, StringComparison.Ordinal)
@@ -269,6 +302,91 @@ static partial class ReportLogDrain
     static string? ValueOf(JsonObject record, string key)
         => record.TryGetPropertyValue(key, out var node) ? node?.ToString() : null;
 
+    /// <summary>The message and level name of a Quarto json-stream record.</summary>
+    readonly record struct QuartoRecord(string Message, string? LevelName);
+
+    /// <summary>A record's part in a failed Pandoc conversion.</summary>
+    enum PandocFailurePart : byte
+    {
+        /// <summary>Outside a failed conversion's block, or a streamed copy that does not match its stderr.</summary>
+        None,
+        /// <summary>Reports it: the ERROR record of Pandoc's stderr, or Quarto's closing record.</summary>
+        Report,
+        /// <summary>Streamed, as INFO, part of the stderr that the ERROR record repeats.</summary>
+        LiveCopy,
+    }
+
+    /// <summary>
+    /// Marks the records of each failed Pandoc conversion in <paramref name="records"/>.
+    /// </summary>
+    /// <remarks>
+    /// While Pandoc runs, Quarto streams its stderr as INFO records, one per chunk read
+    /// from the pipe (processOutput in quarto-dev/quarto-cli's src/core/process.ts).
+    /// When Pandoc fails, Quarto logs that stderr again, trimmed, as one ERROR record,
+    /// and the render ends with the ERROR record "Pandoc conversion failed (exit code
+    /// N)" (runPandoc in src/command/render/pandoc.ts, logged by logError in
+    /// src/core/log.ts; v1.11.9). That closing record anchors the block; the ERROR
+    /// record before it, if any, is the stderr, and the INFO records before that whose
+    /// text, joined and trimmed, is the stderr's are its live copy. DEBUG records, which
+    /// a debug-level log puts between them, are passed over. A copy that does not match,
+    /// such as one missing a chunk that began with a carriage return, which Quarto's log
+    /// file leaves out, stays unmarked, so nothing is lost.
+    /// </remarks>
+    static PandocFailurePart[] MarkPandocFailures(IReadOnlyList<QuartoRecord> records)
+    {
+        var parts = new PandocFailurePart[records.Count];
+        for (var closing = 0; closing < records.Count; closing++)
+        {
+            if (records[closing].LevelName != "ERROR"
+                || !PandocConversionFailedRegex().IsMatch(records[closing].Message))
+                continue;
+            parts[closing] = PandocFailurePart.Report;
+
+            var stderr = PreviousNonDebug(records, closing);
+            if (stderr < 0 || records[stderr].LevelName != "ERROR")
+                continue; // Pandoc's stderr was empty, so Quarto logged no record of it
+            parts[stderr] = PandocFailurePart.Report;
+
+            // Walk back over the INFO records, joining them once they are long enough
+            // to hold the stderr; a trimmed join as long as the stderr that differs
+            // from it ends the walk, since going further back only lengthens it.
+            var stderrText = records[stderr].Message;
+            var copy = new List<int>();
+            var length = 0;
+            for (var j = PreviousNonDebug(records, stderr);
+                 j >= 0 && records[j].LevelName == "INFO";
+                 j = PreviousNonDebug(records, j))
+            {
+                copy.Add(j);
+                length += records[j].Message.Length;
+                if (length < stderrText.Length)
+                    continue;
+                var joined = new StringBuilder(length);
+                for (var k = copy.Count - 1; k >= 0; k--)
+                    joined.Append(records[copy[k]].Message);
+                var text = joined.ToString().Trim();
+                if (text == stderrText)
+                {
+                    foreach (var k in copy)
+                        parts[k] = PandocFailurePart.LiveCopy;
+                    break;
+                }
+                if (text.Length >= stderrText.Length)
+                    break;
+            }
+        }
+        return parts;
+    }
+
+    /// <summary>The index of the last record before <paramref name="index"/> that is not DEBUG, or -1.</summary>
+    static int PreviousNonDebug(IReadOnlyList<QuartoRecord> records, int index)
+    {
+        var i = index - 1;
+        while (i >= 0 && records[i].LevelName == "DEBUG")
+            i--;
+        return i;
+    }
+
     [GeneratedRegex(@"NotFound: No such file or directory \(os error 2\): rename '.+?(/|\\)-' -> '.+?(/|\\)_output(/|\\)-'")]
     private static partial Regex QuartoIssue13394DetectionRegex();
 
@@ -280,9 +398,16 @@ static partial class ReportLogDrain
     [GeneratedRegex(@"^\[(ERROR|WARNING|INFO)\]", RegexOptions.Multiline)]
     private static partial Regex PandocLevelPrefixRegex();
 
+    // Quarto's closing record for a failed Pandoc conversion (runPandoc in
+    // quarto-dev/quarto-cli's src/command/render/pandoc.ts, v1.11.9). Anchored at the
+    // start only, since logError appends a stack trace when QUARTO_DEBUG or
+    // QUARTO_PRINT_STACK is set.
+    [GeneratedRegex(@"^Pandoc conversion failed \(exit code -?\d+\)")]
+    private static partial Regex PandocConversionFailedRegex();
+
     // Quarto colours the stderr of the Rscript process that runs knitr red (SGR
     // "ESC[31m", Deno colors.red — callR in quarto-dev/quarto-cli's
-    // src/execute/rmd.ts, v1.10.18), so the escape marks a record as R-origin
+    // src/execute/rmd.ts, v1.11.9), so the escape marks a record as R-origin
     // regardless of its level. The ESC is built from its code point (0x1B) so the
     // source carries no raw control byte and no greedy C# \x escape. Reliable
     // only because GetProcessStartInfo scrubs NO_COLOR from the child env —

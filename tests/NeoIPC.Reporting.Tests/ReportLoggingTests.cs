@@ -293,6 +293,103 @@ public class ReportLoggingTests
     }
 
     [Test]
+    public async Task DrainQuartoLog_FailedPandocConversion_IsReportedOnceOnPandocAtError()
+    {
+        var (factory, entries) = BuildFactory(LogLevel.Trace);
+        using var _ = factory;
+        // Shaped like the records of a render whose Lua filter fails after a Pandoc
+        // warning, paths shortened: Pandoc's stderr streams as INFO records cut wherever
+        // a read from its pipe ended, here inside the [WARNING] prefix and inside
+        // "Error", then comes again whole as one ERROR record, and Quarto closes with
+        // "Pandoc conversion failed".
+        const string stderr =
+            "[WARNING] Scripting warning at error-filter.lua line 2 column 1: probe warning\n"
+            + "Error running filter main.lua:\n"
+            + "error-filter.lua:3: attempt to call a nil value (global 'internal_error')\n"
+            + "stack traceback:\n\t[C]: in ?";
+        var file = WriteLines(
+            QuartoInfo("pandoc --embed-resources --output probe.html"),
+            QuartoInfo("["),
+            QuartoInfo("WARNING] Scripting warning at error-filter.lua line 2 column 1: probe warning\n"),
+            QuartoInfo("E"),
+            QuartoInfo("rror running filter main.lua:\nerror-filter.lua:3: attempt to call a nil value (global 'internal_error')\n"),
+            QuartoInfo("stack traceback:\n\t[C]: in ?\n"),
+            QuartoRecord("ERROR", stderr),
+            QuartoRecord("ERROR", "Pandoc conversion failed (exit code 83)"));
+
+        await ReportLogDrain.DrainQuartoLogAsync(file, factory, RenderCategory, exitCode: 1, CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            // Reported once, whole, on .Pandoc at Error, followed by Quarto's closing record.
+            Assert.That(HasEntry(entries, $"{RenderCategory}.Pandoc", LogLevel.Error, stderr), Is.True);
+            Assert.That(
+                HasEntry(entries, $"{RenderCategory}.Pandoc", LogLevel.Error, "Pandoc conversion failed (exit code 83)"),
+                Is.True);
+            Assert.That(entries.Count(e => e.Level > LogLevel.Trace && e.Message.Contains("attempt to call a nil value")),
+                Is.EqualTo(1), "the failure was reported more than once");
+            Assert.That(entries.Count(e => e.Level > LogLevel.Trace && e.Message.Contains("Scripting warning")),
+                Is.EqualTo(1), "the warning before the failure was reported more than once");
+            // The streamed copy stays at Trace on .Pandoc; .Quarto keeps only Quarto's own record.
+            Assert.That(HasEntry(entries, $"{RenderCategory}.Pandoc", LogLevel.Trace, "rror running filter"), Is.True);
+            Assert.That(
+                entries.Where(e => e.Category == $"{RenderCategory}.Quarto").Select(e => e.Message).ToArray(),
+                Is.EqualTo(new[] { "pandoc --embed-resources --output probe.html" }));
+        });
+    }
+
+    [Test]
+    public async Task DrainQuartoLog_FailedPandocConversion_IsRecognizedAcrossDebugRecords()
+    {
+        var (factory, entries) = BuildFactory(LogLevel.Trace);
+        using var _ = factory;
+        // At --log-level debug, Quarto logs Pandoc's exit status after the streamed
+        // stderr and starts its clean-up before the closing record.
+        const string stderr =
+            "Error running filter main.lua:\nerror-filter.lua:3: attempt to call a nil value (global 'internal_error')";
+        var file = WriteLines(
+            QuartoInfo("E"),
+            QuartoInfo("rror running filter main.lua:\nerror-filter.lua:3: attempt to call a nil value (global 'internal_error')\n"),
+            QuartoRecord("DEBUG", "[execProcess] Success: false, code: 83"),
+            QuartoRecord("ERROR", stderr),
+            QuartoRecord("DEBUG", "[NotebookContext]: Starting Cleanup"),
+            QuartoRecord("ERROR", "Pandoc conversion failed (exit code 83)"));
+
+        await ReportLogDrain.DrainQuartoLogAsync(file, factory, RenderCategory, exitCode: 1, CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(HasEntry(entries, $"{RenderCategory}.Pandoc", LogLevel.Error, stderr), Is.True);
+            Assert.That(HasEntry(entries, $"{RenderCategory}.Pandoc", LogLevel.Error, "Pandoc conversion failed"), Is.True);
+            Assert.That(entries.Count(e => e.Level > LogLevel.Trace && e.Message.Contains("attempt to call a nil value")),
+                Is.EqualTo(1), "the failure was reported more than once");
+            Assert.That(HasEntry(entries, $"{RenderCategory}.Quarto", LogLevel.Debug, "[execProcess] Success: false"), Is.True);
+        });
+    }
+
+    [Test]
+    public async Task DrainQuartoLog_FailedPandocConversion_KeepsAStreamedCopyThatDoesNotMatch()
+    {
+        var (factory, entries) = BuildFactory(LogLevel.Trace);
+        using var _ = factory;
+        // Quarto's log file leaves out a record that starts with a carriage return, so a
+        // chunk cut just before a CRLF is missing from the streamed copy. Only a copy that
+        // repeats the stderr exactly is lowered to Trace; this one stays where it was.
+        var file = WriteLines(
+            QuartoInfo("Error running filter main.lua:"),
+            QuartoRecord("ERROR", "Error running filter main.lua:\r\nerror-filter.lua:3: attempt to call a nil value (global 'internal_error')"),
+            QuartoRecord("ERROR", "Pandoc conversion failed (exit code 83)"));
+
+        await ReportLogDrain.DrainQuartoLogAsync(file, factory, RenderCategory, exitCode: 1, CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(HasEntry(entries, $"{RenderCategory}.Pandoc", LogLevel.Error, "attempt to call a nil value"), Is.True);
+            Assert.That(HasEntry(entries, $"{RenderCategory}.Quarto", LogLevel.Information, "Error running filter main.lua:"), Is.True);
+        });
+    }
+
+    [Test]
     public async Task DrainQuartoLog_AtInformation_RecoversTheLatexWriteErrorBlockToTheLatexChannel()
     {
         var (factory, entries) = BuildFactory(LogLevel.Information);
@@ -330,7 +427,7 @@ public class ReportLoggingTests
         using var _ = factory;
         // A LaTeX failure whose findLatexError detail carries NO "l.<n>" marker —
         // Quarto's fixed "No pages of output" alternate, an emergency-stop/output
-        // context, or the 1.10 luaotfload-fallback guidance string. Structural
+        // context, or the luaotfload-fallback guidance string. Structural
         // detection recovers it anyway, so the cause survives a Warning threshold
         // instead of vanishing at INFO on .Quarto. (A content marker misses these.)
         var file = WriteLines(
@@ -354,10 +451,10 @@ public class ReportLoggingTests
         using var _ = factory;
         // Records as Quarto writes them for a failing R chunk under the service's
         // (quiet) render (captured from a real render): knitr's stderr is piped
-        // and re-emitted as red-colourised (ESC[31m) INFO records. The "processing
+        // and re-emitted as red-colourized (ESC[31m) INFO records. The "processing
         // file" progress is benign; the "Error:"/"! ", "Quitting from" and
         // "Execution halted" records are the failure, logged at INFO. esc is built
-        // from its code point and JSON-escaped by the serialiser so the source
+        // from its code point and JSON-escaped by the serializer so the source
         // carries no raw control byte.
         var esc = (char)0x1b;
         var file = WriteLines(
@@ -454,7 +551,7 @@ public class ReportLoggingTests
         using var _ = factory;
         // Colour-independent net: R-exclusive terminal signals are recovered even
         // when the red gate is absent — an inherited NO_COLOR that disables Quarto's
-        // colourising, or a native crash that bypasses R's error machinery. Both
+        // colourizing, or a native crash that bypasses R's error machinery. Both
         // must still reach .R.report at Error.
         var file = WriteLines(
             QuartoInfo("Execution halted"),
@@ -554,7 +651,7 @@ public class ReportLoggingTests
     }
 
     // A Quarto json-stream record carrying an arbitrary level name and msg. The
-    // serialiser JSON-escapes both, so control chars like ESC are emitted as their
+    // serializer JSON-escapes both, so control chars like ESC are emitted as their
     // escape sequence rather than a raw byte the parser would reject.
     static string QuartoRecord(string levelName, string msg)
         => $$"""{"levelName":{{System.Text.Json.JsonSerializer.Serialize(levelName)}},"level":20,"msg":{{System.Text.Json.JsonSerializer.Serialize(msg)}},"loggerName":"default"}""";
