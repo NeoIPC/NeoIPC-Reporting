@@ -43,6 +43,13 @@ product's own changelog, and here only as the pin that carries it.
   streams those records, which repeat the error output cut at arbitrary points. Where they repeat it
   exactly, the service keeps them at `Trace`, so the failure is reported once; where they do not, as
   when Quarto's log leaves out a chunk, it logs them as before, so nothing is lost.
+- The local development stack's database is PostgreSQL 18 with PostGIS 3.7, in place of PostgreSQL 14
+  with PostGIS 3.5, whose community support has ended. `compose.yml` names the image itself, on a new
+  volume, `postgres18`, mounted where the image keeps its cluster from PostgreSQL 18 on, and no longer
+  reads `POSTGIS_VERSION` from `.env`. An existing stack therefore starts on an empty database and
+  has to be seeded again; its previous volume, `neoipc-reporting_postgres`, stays until it is removed
+  by hand (`docker volume rm`), since `docker compose down -v` removes only the volumes the file
+  names.
 
 ### Fixed
 
