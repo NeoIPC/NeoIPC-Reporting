@@ -71,7 +71,7 @@ docker compose up --build
 Brings up Postgres + DHIS2 + this service + Traefik on `localhost:${TRAEFIK_PORT:-8080}`.
 Every variable in the sample without a documented default is required — compose
 substitutes an unset one with an empty string, so a missing value surfaces late
-and unhelpfully (`postgis/postgis:` with no tag) rather than as a clear error.
+and unhelpfully (`dhis2/core:` with no tag) rather than as a clear error.
 
 Compose picks up [`compose.override.yml`](compose.override.yml) automatically, so
 this is a **development** stack rather than a production-shaped one: it builds the
